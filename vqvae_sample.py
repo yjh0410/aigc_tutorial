@@ -32,6 +32,8 @@ def parse_args():
     # Model
     parser.add_argument('--model', type=str, default='vqvae',
                         help='model name')
+    parser.add_argument('--sampler_scale', type=str, default='nano',
+                        help='model name')
     parser.add_argument('--weight_vae', default=None, type=str,
                         help='Load the checkpoint of the vae model.')
     parser.add_argument('--weight_sampler', default=None, type=str,
@@ -49,6 +51,7 @@ def reconstruction(args, device):
     # Build Model
     vqvae_model = build_model(args)
     if args.weight_vae is not None:
+        print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
         vqvae_model.load_state_dict(checkpoint["model"])
     vqvae_model = vqvae_model.to(device).eval()
@@ -111,12 +114,11 @@ def sample(args, device):
     vqvae_model = vqvae_model.to(device).eval()
 
     # Build Sampler
-    vae_sampler = build_sampler(args, vqvae_model)
+    vae_sampler = build_sampler(args, vqvae_model.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
         vae_sampler.load_state_dict(checkpoint["model"])
     vae_sampler = vae_sampler.to(device).eval()
-    vae_sampler.load_vae_model(vqvae_model)
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model)

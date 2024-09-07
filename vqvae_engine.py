@@ -77,6 +77,7 @@ def train_one_epoch(args,
 
 def train_sampler_one_epoch(args,
                             device,
+                            vqvae_model,
                             sampler,
                             data_loader,
                             optimizer,
@@ -110,8 +111,12 @@ def train_sampler_one_epoch(args,
         images = images.to(device, non_blocking=True)   # original images: [B, C, H, W]
         labels = labels.to(device, non_blocking=True)   # class labels: [B,]
 
+        # Get token ids
+        with torch.no_grad():
+            z_q, tok_ids = vqvae_model.forward_encode(images)
+        
         # Inference
-        output = sampler(images)
+        output = sampler(tok_ids.detach())
 
         # Training losses
         loss_dict = output['loss_dict']

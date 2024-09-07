@@ -46,13 +46,6 @@ class VqVaeSampler(nn.Module):
                 module.bias.data.zero_()
                 module.weight.data.fill_(1.0)
 
-    def load_vqvae_model(self, vqvae_model):
-        self.vqvae_model = vqvae_model.eval()
-
-    def encode_to_z(self, x):
-        z_q, tok_ids = self.vqvae_model.forward_encode(x)
-        return z_q, tok_ids
-
     def top_k_logits(self, logits, k):
         v, ix = torch.topk(logits, k)
         out = logits.clone()
@@ -81,14 +74,8 @@ class VqVaeSampler(nn.Module):
 
         return tok_ids
 
-    def forward(self, x):
-
-        # Encode to latent space
-        with torch.no_grad():
-            self.vqvae_model.eval()
-            _, tok_ids = self.encode_to_z(x)
-
-        # Prepare the sos token id
+    def forward(self, tok_ids):
+        # Append the sos token id
         sos_tokens = torch.ones(tok_ids.shape[0], 1) * self.sos_token
         sos_tokens = sos_tokens.long().to(tok_ids.device)
 
@@ -131,19 +118,11 @@ def compute_loss(logits, target):
 
 if __name__ == '__main__':
     import torch
-    from vqvae import VqVAE
 
-    # Prepare an image as the input
-    bs, c, h, w  = 4, 3, 64, 64
-    num_vq_embeds = 768
-    x = torch.randn(bs, c, h, w)
-
-    # Build VQ-VAE model
-    vqvae_model = VqVAE(
-        img_dim=c,
-        hidden_dim=128,
-        num_embeddings=num_vq_embeds,
-        latent_dim=64)
+    # Prepare token ids as the input
+    bs, seq_len = 5, 278
+    vocab_size = 512
+    token_ids = torch.randint(low=0, high=512, size=[bs, seq_len])
 
     # Build VQ-VAE sampler
     gpt_config = {
@@ -154,12 +133,11 @@ if __name__ == '__main__':
         'rope_theta': 50000,
         'sos_token_id': 0,
     }
-    sampler = VqVaeSampler(gpt_config, num_vq_embeds)
+    sampler = VqVaeSampler(gpt_config, vocab_size)
     sampler.train()
-    sampler.load_vqvae_model(vqvae_model)
 
     # Inference
-    output = sampler(x)
+    output = sampler(token_ids)
     for k in output:
         if k == "loss_dict":
             for k_loss in output['loss_dict']:

@@ -35,7 +35,7 @@ def parse_args():
                         help='use cuda')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='number of workers')
-    parser.add_argument('--path_to_save', type=str, default='weights/',
+    parser.add_argument('--output_dir', type=str, default='weights/',
                         help='path to save trained model.')
     parser.add_argument('--tfboard', action='store_true', default=False,
                         help='use tensorboard')
@@ -86,9 +86,8 @@ def main():
     setup_seed(args.seed)
 
     # Path to save model
-    path_to_save = os.path.join(args.path_to_save, args.dataset, args.model, "sampler")
-    os.makedirs(path_to_save, exist_ok=True)
-    args.output_dir = path_to_save
+    args.output_dir = os.path.join(args.output_dir, args.dataset, args.model, f"sampler_{args.sampler_scale}")
+    os.makedirs(args.output_dir, exist_ok=True)
     
     # ------------------------- Build DDP environment -------------------------
     ## LOCAL_RANK is the global GPU number tag, the value range is [0, world_size - 1].
@@ -152,7 +151,6 @@ def main():
     print(" =================== VAE Sampler info. =================== ")
     sampler = build_sampler(args, vqvae_model.num_embeddings)
     sampler = sampler.train().to(device)
-    sampler.load_vqvae_model(vqvae_model)
     print(sampler)
 
 # ------------------------- Build Optimzier & Scheduler -------------------------
@@ -192,7 +190,6 @@ def main():
 
     # ------------------------- Training Pipeline -------------------------
     start_time = time.time()
-    return
     print_rank_0("=============== Step-2: Train Sampler  ===============", local_rank)
     for epoch in range(args.start_epoch, args.max_epoch):
         if args.distributed:
@@ -201,6 +198,7 @@ def main():
         # train one epoch
         train_sampler_one_epoch(args,
                                 device,
+                                vqvae_model,
                                 sampler,
                                 train_dataloader,
                                 optimizer,
