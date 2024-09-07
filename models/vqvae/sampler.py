@@ -1,148 +1,168 @@
-import math
-import random
 import torch
 import torch.nn as nn
-from typing import Type
+import torch.nn.functional as F
+
+from typing import Dict
 
 try:
-    from .modules  import TransformerBlock
+    from .minigpt import MiniGPT2
 except:
-    from  modules import TransformerBlock
+    from  minigpt import MiniGPT2
 
 
 # ------------------------ Basic Modules ------------------------
-class VqVAESampler(nn.Module):
+class VqVaeSampler(nn.Module):
     def __init__(self,
-                 num_blocks: int = 6,
-                 num_heads:  int = 2,
-                 dropout:    float = 0.0,
-                 latent_dim: int = 128,
-                 num_embeddings: int = 512,
+                 gpt_config    : Dict,
+                 num_vq_embeds : int,
                  ) -> None:
         super().__init__()
+        gpt_config['vocab_size'] = num_vq_embeds
         # ----------- Basic parameters -----------
-        self.latent_dim     = latent_dim
-        self.num_embeddings = num_embeddings
+        self.gpt_config = gpt_config
+        self.num_vq_embeds = num_vq_embeds
+        self.vocab_size = gpt_config['vocab_size']
+        self.sos_token  = gpt_config['sos_token_id']
+
         # ----------- Model parameters -----------
-        self.mask_tokens  = nn.Parameter(torch.zeros(1, 1, self.latent_dim))
-        self.norm_layer   = nn.LayerNorm(self.latent_dim)
-        self.transformers = nn.ModuleList([
-            TransformerBlock(self.latent_dim, num_heads=num_heads, dropout=dropout)
-            for _ in range(num_blocks)])
-        self.out_proj = nn.Linear(latent_dim, num_embeddings)
+        self.transformers = MiniGPT2(num_layers  = gpt_config['num_layers'],
+                                     num_heads   = gpt_config['num_heads'],
+                                     embed_dim   = gpt_config['embed_dim'],
+                                     max_seq_len = gpt_config['max_seq_len'],
+                                     vocab_size  = gpt_config['vocab_size'],
+                                     rope_theta  = gpt_config['rope_theta'],
+                                     dropout     = 0.1,
+                                     )
         
         self._init_weights()
 
     def _init_weights(self):
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear):
-                # we use xavier_uniform following official JAX ViT:
-                torch.nn.init.xavier_uniform_(module.weight)
-                if module.bias is not None:
-                    nn.init.constant_(module.bias, 0)
-            
+        for module in self.modules():
+            if isinstance(module, (nn.Linear, nn.Embedding)):
+                module.weight.data.normal_(mean=0.0, std=0.02)
+                if isinstance(module, nn.Linear) and module.bias is not None:
+                    module.bias.data.zero_()
             elif isinstance(module, nn.LayerNorm):
-                nn.init.constant_(module.bias, 0)
-                nn.init.constant_(module.weight, 1.0)
+                module.bias.data.zero_()
+                module.weight.data.fill_(1.0)
 
-    def get_posembed(self, embed_dim, num_seq, temperature=10000):
-        scale = 2 * math.pi
-        num_pos_feats = embed_dim // 2
+    def load_vqvae_model(self, vqvae_model):
+        self.vqvae_model = vqvae_model.eval()
 
-        # sequence indexes
-        indexs =  torch.arange(num_seq, dtype=torch.float32)
-        indexs = indexs / (num_seq + 1e-6) * scale
-    
-        dim_t = torch.arange(num_pos_feats, dtype=torch.float32)
-        dim_t_ = torch.div(dim_t, 2, rounding_mode='floor') / num_pos_feats
-        dim_t = temperature ** (2 * dim_t_)
+    def encode_to_z(self, x):
+        z_q, tok_ids = self.vqvae_model.forward_encode(x)
+        return z_q, tok_ids
 
-        pos = torch.div(indexs[..., None], dim_t)
-        pos_embed = torch.stack((pos[..., 0::2].sin(),
-                                 pos[..., 1::2].cos()), dim=-1).flatten(-2)
+    def top_k_logits(self, logits, k):
+        v, ix = torch.topk(logits, k)
+        out = logits.clone()
+        out[out < v[..., [-1]]] = -float("inf")
 
-        return pos_embed
+        return out
 
-    def random_masking(self, x):
-        B, N, C = x.shape
-        len_keep = int(N * (1 - self.mask_ratio))
+    def sample(self, init_tok_ids, condition, num_steps=1, temperature=1.0, top_k=100):
+        tok_ids = torch.cat([init_tok_ids, condition], dim=1)
+        for k in range(num_steps):
+            logits, _ = self.transformers(tok_ids)
+            nt_logits = logits[:, -1, :] / temperature
 
-        noise = torch.rand(B, N, device=x.device)  # noise in [0, 1]
+            if top_k is not None:
+                nt_logits = self.top_k_logits(nt_logits, top_k)
 
-        # sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)        # ascend: small is keep, large is remove
-        ids_restore = torch.argsort(ids_shuffle, dim=1)  # restore the original position of each patch
+            probs = F.softmax(nt_logits, dim=-1)
 
-        # keep the first subset
-        ids_keep = ids_shuffle[:, :len_keep]
-        x_masked = torch.gather(x, dim=1, index=ids_keep.unsqueeze(-1).repeat(1, 1, C))
+            # Sample a new token id according to the probs
+            new_tok_id = torch.multinomial(probs, num_samples=1)
 
-        # generate the binary mask: 0 is keep, 1 is remove
-        mask = torch.ones([B, N], device=x.device)
-        mask[:, :len_keep] = 0
+            # Add the new token id
+            tok_ids = torch.cat([tok_ids, new_tok_id], dim=1)
 
-        # unshuffle to get th binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
+        tok_ids = tok_ids[:, condition.shape[1]:].contiguous()
 
-        return x_masked, mask, ids_restore
+        return tok_ids
 
-    def compute_loss(self, pred_scores, target_ids):
-        """
-        imgs: [B, 3, H, W]
-        pred: [B, N, C], C = p*p*3
-        mask: [B, N], 0 is keep, 1 is remove, 
-        """
-        # TODO: compute ce loss
-        loss = None
-        
-        return loss
+    def forward(self, x):
 
-    def forward(self, tokens, token_ids):
-        bs, seq_len, c = tokens.shape
-        # masking: length -> length * mask_ratio
-        x_keep, mask, ids_restore = self.random_masking(tokens)
+        # Encode to latent space
+        with torch.no_grad():
+            self.vqvae_model.eval()
+            _, tok_ids = self.encode_to_z(x)
 
-        # Append mask tokens
-        num_mask = seq_len - x_keep.shape[1]
-        mask_tokens = self.mask_tokens.repeat(bs, num_mask, 1)
-        x_all = torch.cat([x_keep, mask_tokens], dim=1)
-        x_all = torch.gather(x_all, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, c))  # unshuffle
+        # Prepare the sos token id
+        sos_tokens = torch.ones(tok_ids.shape[0], 1) * self.sos_token
+        sos_tokens = sos_tokens.long().to(tok_ids.device)
 
-        # add pos embed
-        pos_embed = self.get_posembed(c, seq_len)
-        x_all = x_all + pos_embed.to(x.device)
+        # Randomly mask token ids
+        mask = torch.bernoulli(0.5 * torch.ones(tok_ids.shape, device=tok_ids.device))
+        mask = mask.round().to(dtype=torch.int64)
+        random_tok_ids = torch.randint_like(tok_ids, self.vocab_size)
+        new_tok_ids = mask * tok_ids + (1 - mask) * random_tok_ids
 
-        # Apply Transformer blocks
-        for block in self.transformers:
-            x = block(x)
-        x = self.norm_layer(x)
-        pred_scores = None
+        # Append sos token id
+        new_tok_ids = torch.cat((sos_tokens, new_tok_ids), dim=1)
+        logits, _ = self.transformers(new_tok_ids[:, :-1])
 
+        output = {
+            'logits': logits,
+        }
         if self.training:
-            # TODO: training loss
-            target_ids = token_ids
-            loss = self.compute_loss(pred_scores, target_ids)
-        
-        return x_all
+            loss_dict = compute_loss(logits, target=tok_ids)
+            output['loss_dict'] = loss_dict
+
+        return output
+
+
+# --------------------- Loss functions ---------------------
+def compute_loss(logits, target):
+    """
+    pred_scores: [bs, seq_len, c]
+    target_ids:  [bs, seq_len,]
+    """
+    loss = F.cross_entropy(logits.flatten(0, 1),  # [BN, vocab_size]
+                           target.flatten(),      # [BN,]
+                           reduction="mean",
+                           )
+    loss_dict = {
+        'loss': loss,
+    }
+    
+    return loss_dict
 
 
 if __name__ == '__main__':
     import torch
+    from vqvae import VqVAE
 
     # Prepare an image as the input
-    bs, seq_len, c  = 4, 1024, 128
-    num_embeddings = 512
-    token = torch.randn(bs, seq_len, c)
-    token_ids = torch.randint(low=0, high=512, size=[bs, seq_len])
+    bs, c, h, w  = 4, 3, 64, 64
+    num_vq_embeds = 768
+    x = torch.randn(bs, c, h, w)
 
-    # Build model
-    sampler = VqVAESampler(num_blocks=3,
-                           num_heads=2,
-                           dropout=0.1,
-                           latent_dim=c,
-                           num_embeddings=num_embeddings,
-                           )
+    # Build VQ-VAE model
+    vqvae_model = VqVAE(
+        img_dim=c,
+        hidden_dim=128,
+        num_embeddings=num_vq_embeds,
+        latent_dim=64)
+
+    # Build VQ-VAE sampler
+    gpt_config = {
+        'num_layers': 12,
+        'num_heads': 3,
+        'embed_dim': 192,
+        'max_seq_len': 512,
+        'rope_theta': 50000,
+        'sos_token_id': 0,
+    }
+    sampler = VqVaeSampler(gpt_config, num_vq_embeds)
     sampler.train()
+    sampler.load_vqvae_model(vqvae_model)
 
     # Inference
-    output = sampler(token, token_ids)
+    output = sampler(x)
+    for k in output:
+        if k == "loss_dict":
+            for k_loss in output['loss_dict']:
+                print(output['loss_dict'][k_loss])
+        else:
+            print(f"{k}: ", output[k].shape)

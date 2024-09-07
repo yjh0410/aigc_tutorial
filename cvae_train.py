@@ -20,7 +20,7 @@ from utils import distributed_utils
 from utils.misc import setup_seed, print_rank_0, load_model, save_model
 
 # ---------------- Training engine ----------------
-from engine import train_cvae_one_epoch
+from cvae_engine import train_one_epoch
 
 
 def parse_args():
@@ -155,7 +155,7 @@ def main():
             train_dataloader.batch_sampler.sampler.set_epoch(epoch)
 
         # train one epoch
-        train_cvae_one_epoch(args,
+        train_one_epoch(args,
                              device,
                              model,
                              train_dataloader,

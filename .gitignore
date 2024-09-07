@@ -11,3 +11,4 @@ dataset/cifar/
 dataset/cifar_data/
 dataset/mnist_data/
 log/
+result/

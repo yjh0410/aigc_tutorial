@@ -14,11 +14,16 @@ except:
 
 # ------------------ VQ-VAE ------------------
 class VqVAE(nn.Module):
-    def __init__(self, img_dim=3, hidden_dim=128, latent_dim=64):
+    def __init__(self, img_dim=3, hidden_dim=128, latent_dim=64, num_embeddings=512):
         super().__init__()
+        self.img_dim = img_dim
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+        self.num_embeddings = num_embeddings
+        
         self.encoder  = VqVaeEncoder(img_dim, hidden_dim)
         self.decoder  = VqVaeDecoder(img_dim, hidden_dim, latent_dim)
-        self.codebook = CodeBook(hidden_dim, latent_dim, num_embeddings=512)
+        self.codebook = CodeBook(hidden_dim, latent_dim, num_embeddings)
     
     def compute_loss(self, x, x_rec, vq_output):
         # ----------- Reconstruction loss -----------
@@ -45,8 +50,14 @@ class VqVAE(nn.Module):
 
         # Quantize
         vq_output = self.codebook(z_e)
+        z_q = vq_output['rep_z_q']
+        bs, c, h, w = z_q.shape
 
-        return vq_output['rep_z_q']
+        # Token ids
+        ids = vq_output['min_encodings']
+        ids = ids.view(bs, h*w)   # [BHW,] -> [B, HW]
+
+        return z_q, ids
     
     def forward_decode(self, z_q):
         x_rec = self.decoder(z_q)
@@ -58,9 +69,10 @@ class VqVAE(nn.Module):
 
         # Quantize
         vq_output = self.codebook(z_e)
+        z_q = vq_output['rep_z_q']
 
         # Decode
-        x_rec = self.decoder(vq_output['rep_z_q'])
+        x_rec = self.decoder(z_q)
 
         output = {
             'x_pred': x_rec,

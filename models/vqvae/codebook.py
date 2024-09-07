@@ -45,6 +45,7 @@ class CodeBook(nn.Module):
 
         vq_output = {
             'rep_z_q': rep_z_q,
+            'min_encodings': min_indices,
         }
 
         # --------------- Loss of Vector-quantizer ---------------

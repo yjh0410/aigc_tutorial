@@ -251,10 +251,8 @@ def load_model(args, model_without_ddp, optimizer, lr_scheduler):
             print('- Load lr scheduler from the checkpoint. ')
             lr_scheduler.load_state_dict(checkpoint.pop("lr_scheduler"))
 
-def save_model(args, epoch, model, model_without_ddp, optimizer, lr_scheduler):
+def save_model(args, model_without_ddp, optimizer, lr_scheduler, epoch, metrics=None):
     output_dir = Path(args.output_dir)
-    epoch_name = str(epoch)
-    checkpoint_path = output_dir / ('checkpoint-{}.pth'.format(epoch_name))
     to_save = {
         'model': model_without_ddp.state_dict(),
         'optimizer': optimizer.state_dict(),
@@ -262,4 +260,23 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, lr_scheduler):
         'epoch': epoch,
         'args': args,
     }
+    if metrics is None:
+        checkpoint_path = output_dir / ('checkpoint-{}.pth'.format(epoch))
+    else:
+        checkpoint_path = output_dir / ('checkpoint-{}_psnr_{}_ssim_{}.pth'.format(epoch, metrics[0], metrics[1]))
+        to_save["psnr"] = metrics[0]
+        to_save["ssim"] = metrics[1]
+
+    torch.save(to_save, checkpoint_path)
+
+def save_sampler(args, model_without_ddp, optimizer, lr_scheduler, epoch):
+    output_dir = Path(args.output_dir)
+    to_save = {
+        'model': model_without_ddp.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'lr_scheduler': lr_scheduler.state_dict(),
+        'epoch': epoch,
+        'args': args,
+    }
+    checkpoint_path = output_dir / ('checkpoint-{}.pth'.format(epoch))        
     torch.save(to_save, checkpoint_path)

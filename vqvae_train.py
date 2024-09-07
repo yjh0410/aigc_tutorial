@@ -21,7 +21,7 @@ from utils.misc import setup_seed, print_rank_0, load_model, save_model
 from utils.lr_scheduler import LinearWarmUpLrScheduler
 
 # ---------------- Training engine ----------------
-from engine import train_vqvae_one_epoch
+from vqvae_engine import train_one_epoch, evaluate_one_epoch
 
 
 def parse_args():
@@ -56,6 +56,15 @@ def parse_args():
                         help='model name')
     parser.add_argument('--resume', default=None, type=str,
                         help='keep training')
+    # Optimizer
+    parser.add_argument('--optimizer', type=str, default='adam',
+                        help='training optimier.')
+    parser.add_argument('--lr', type=float, default=0.0002,
+                        help='initial learning rate.')
+    parser.add_argument('--weight_decay', type=float, default=0.0,
+                        help='initial learning rate.')
+    parser.add_argument('--wp_iters', type=float, default=500,
+                        help='initial learning rate.')
     # DDP
     parser.add_argument('--distributed', action='store_true', default=False,
                         help='distributed training')
@@ -124,6 +133,8 @@ def main():
     # ------------------------- Build Dataset -------------------------
     train_dataset = build_dataset(args, is_train=True)
     train_dataloader = build_dataloader(args, train_dataset, is_train=True)
+    tvalid_dataset = build_dataset(args, is_train=False)
+    valid_dataloader = build_dataloader(args, tvalid_dataset, is_train=False)
 
     print('=================== Dataset Information ===================')
     print("Dataset: ", args.dataset)
@@ -134,21 +145,26 @@ def main():
     model.train().to(device)
     print(model)
 
+    # ------------------------- Build Optimzier & Scheduler -------------------------
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epoch - 1, eta_min=0.0)
+    lr_scheduler_wp = LinearWarmUpLrScheduler(args.lr, wp_iters=args.wp_iters)
+
     # ------------------------- Build DDP Model -------------------------
     model_without_ddp = model
     if args.distributed:
         model = DDP(model, device_ids=[args.gpu])
         model_without_ddp = model.module
 
-    # ------------------------- Build Optimzier & Scheduler -------------------------
-    base_lr = 0.0002
-    optimizer = torch.optim.AdamW(model.parameters(), lr=base_lr, weight_decay=0.0)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.max_epoch - 1, eta_min=0.0)
-    lr_scheduler_wp = LinearWarmUpLrScheduler(base_lr, wp_iters=len(train_dataloader) * 1 - 10)
-
     # ------------------------- Build Criterion -------------------------
-    load_model(args=args, model_without_ddp=model_without_ddp,
-               optimizer=optimizer, lr_scheduler=lr_scheduler)
+    load_model(args, model_without_ddp, optimizer, lr_scheduler)
+
+    # ------------------------- Evaluate first -------------------------
+    if args.eval:
+        metrics = evaluate_one_epoch(device, model_without_ddp, valid_dataloader, local_rank=0)
+        print("PSNR: ", round(metrics["psnr"], 4))
+        print("SSIM: ", round(metrics["ssim"], 4))
+        return
 
     # ------------------------- Training Pipeline -------------------------
     start_time = time.time()
@@ -158,27 +174,31 @@ def main():
             train_dataloader.batch_sampler.sampler.set_epoch(epoch)
 
         # train one epoch
-        train_vqvae_one_epoch(args,
-                              device,
-                              model,
-                              train_dataloader,
-                              optimizer,
-                              lr_scheduler_wp,
-                              epoch,
-                              local_rank,
-                              tblogger)
+        train_one_epoch(args,
+                        device,
+                        model,
+                        train_dataloader,
+                        optimizer,
+                        lr_scheduler_wp,
+                        epoch,
+                        local_rank,
+                        tblogger,
+                        )
 
         # LR scheduler
         lr_scheduler.step()
 
         # Evaluate
         if local_rank <= 0:
-            model_eval = model_without_ddp
             if (epoch % args.eval_epoch) == 0 or (epoch + 1 == args.max_epoch):
+                metrics = evaluate_one_epoch(device, model_without_ddp, valid_dataloader, local_rank=0)
+
                 # Save model
                 print('- saving the model after {} epochs ...'.format(epoch))
-                save_model(args=args, model=model_eval, model_without_ddp=model_eval,
-                           optimizer=optimizer, lr_scheduler=lr_scheduler, epoch=epoch)
+                psnr, ssim = round(metrics["psnr"], 2), round(metrics["ssim"], 4)
+                save_model(args, model_without_ddp, optimizer, lr_scheduler, epoch, metrics=[psnr, ssim])
+
+        # Waiting for the main process
         if args.distributed:
             dist.barrier()
 
@@ -186,8 +206,6 @@ def main():
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
 
-    print_rank_0("=============== Step-2: Train Sampler  ===============", local_rank)
-    # TODO: train sampler
 
 if __name__ == "__main__":
     main()
