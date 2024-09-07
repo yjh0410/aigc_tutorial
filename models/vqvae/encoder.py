@@ -7,7 +7,7 @@ except:
     from  modules import ResStage
 
 
-# ------------------ VAE Modules ------------------
+# ------------------ VQ-VAE Encoders ------------------
 class VqVaeEncoder(nn.Module):
     def __init__(self, img_dim=3, hidden_dim=256):
         super().__init__()

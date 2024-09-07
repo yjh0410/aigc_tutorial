@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-# ------------------ VQ-VAE Modules ------------------
+# ------------------ VQ-VAE Codebooks ------------------
 class CodeBook(nn.Module):
     def __init__(self, hidden_dim=256, latent_dim=128, num_embeddings=512):
         super(CodeBook, self).__init__()
@@ -24,26 +24,18 @@ class CodeBook(nn.Module):
     def forward(self, z):
         # Input projection
         z = self.input_proj(z)
-
-        # [B, C, H, W] -> [B, H, W, C] -> [BHW, C]
-        z = z.permute(0, 2, 3, 1).contiguous()
-        z_flattened = z.view(-1, self.latent_dim)
+        z = z.permute(0, 2, 3, 1).contiguous()    # [B, C, H, W] -> [B, H, W, C]
+        z_flattened = z.view(-1, self.latent_dim) # [B, H, W, C] -> [BHW, C]
 
         # Distance between image feature and all embeddings
         dist = torch.cdist(z_flattened, self.embedding.weight, p=2) ** 2  # [BHW, K]
-
+        
         # Find closest encodings
-        min_encoding_indices = torch.argmin(dist, dim=1).unsqueeze(1)
+        min_indices = torch.argmin(dist, dim=1)  # [BHW,]
 
-        # One-hot format including the index of the closest encodings
-        min_encodings = torch.zeros(min_encoding_indices.shape[0],
-                                    self.num_embeddings,
-                                    ).to(z.device) # [BHW, K]
-        min_encodings.scatter_(1, min_encoding_indices, 1)
-
-        # Quantized latent vectors: [BHW, K] x [K, C] = [BHW, C]
-        z_q = torch.matmul(min_encodings, self.embedding.weight)
-        z_q = z_q.view(z.shape) # [BHW, C] -> [B, H, W, C]
+        # Index latent vectors
+        z_q = self.embedding(min_indices)  # [BHW, C]
+        z_q = z_q.view(z.shape)            # [BHW, C] -> [B, H, W, C]
 
         # Preserve gradients
         rep_z_q = z + (z_q - z).detach()
@@ -62,7 +54,9 @@ class CodeBook(nn.Module):
             embedding_loss = F.mse_loss(z_q.detach(), z, reduction='mean') + \
                              F.mse_loss(z.detach(), z_q, reduction='mean') * beta
             # Perplexity
-            e_mean = torch.mean(min_encodings, dim=0)
+            min_indices_ot = torch.zeros(min_indices.shape[0], self.num_embeddings).to(z.device) # [BHW, K]
+            min_indices_ot.scatter_(1, min_indices.unsqueeze(-1), 1)
+            e_mean = torch.mean(min_indices_ot, dim=0)
             perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
 
             vq_output['emb_loss'] = embedding_loss
@@ -85,9 +79,9 @@ if __name__ == '__main__':
 
     # Inference
     vq_output = model(x)
-    for k in vq_output:
-        if k is not None:
-            print(f"{k}: ", vq_output[k].shape)
+    print("rep_z_q: ",    vq_output['rep_z_q'].shape)
+    print("emb_loss: ",   vq_output['emb_loss'])
+    print("perplexity: ", vq_output['perplexity'])
 
     # Compute FLOPs & Params
     print('==============================')
