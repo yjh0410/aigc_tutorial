@@ -1,8 +1,8 @@
 from .sampler import GPTSampler
 
 
-def build_gpt_sampler(scale='tiny', num_vq_embeds=1024):
-    if scale == 'gpt_large':
+def build_gpt_sampler(args, num_vq_embeds=1024):
+    if args.sampler == 'gpt_large':
         gpt_config = {
             'num_layers': 32,
             'num_heads': 25,
@@ -11,7 +11,7 @@ def build_gpt_sampler(scale='tiny', num_vq_embeds=1024):
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
-    elif scale == 'gpt_medium':
+    elif args.sampler ==  'gpt_medium':
         gpt_config = {
             'num_layers': 24,
             'num_heads': 16,
@@ -20,7 +20,7 @@ def build_gpt_sampler(scale='tiny', num_vq_embeds=1024):
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
-    elif scale == 'gpt_base':
+    elif args.sampler ==  'gpt_base':
         gpt_config = {
             'num_layers': 12,
             'num_heads': 12,
@@ -29,7 +29,7 @@ def build_gpt_sampler(scale='tiny', num_vq_embeds=1024):
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
-    elif scale == 'gpt_small':
+    elif args.sampler ==  'gpt_small':
         gpt_config = {
             'num_layers': 10,
             'num_heads': 8,
@@ -39,6 +39,9 @@ def build_gpt_sampler(scale='tiny', num_vq_embeds=1024):
             'sos_token_id': 0,
             }
     else:
-        raise NotImplementedError(f"Unknown scale for VQGANSampler: {scale}")
+        raise NotImplementedError(f"Unknown scale for VQGANSampler: {args.sampler}")
 
-    return GPTSampler(gpt_config, num_vq_embeds)
+    print(f" - GPT sampler version : {args.sampler}")
+    gpt_config["vocab_size"] = num_vq_embeds
+    
+    return GPTSampler(gpt_config)

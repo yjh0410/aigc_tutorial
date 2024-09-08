@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 try:
-    from .modules  import TransformerBlock
+    from .modules  import TransformerBlock, RMSNorm
 except:
-    from  modules  import TransformerBlock
+    from  modules  import TransformerBlock, RMSNorm
 
 
 # ------------------------ Basic Modules ------------------------
@@ -26,7 +26,6 @@ class MiniGPT2(nn.Module):
                  max_seq_len : int = 2048,
                  vocab_size  : int = 1024,
                  rope_theta  : int = 50000,
-                 dropout     : float = 0.0,
                  ) -> None:
         super().__init__()
         # ----------- Basic parameters -----------
@@ -38,27 +37,25 @@ class MiniGPT2(nn.Module):
 
         # ----------- Model parameters -----------
         self.tok_emb = nn.Embedding(vocab_size, embed_dim)
-        self.transformers = nn.ModuleList([
+        self.blocks  = nn.ModuleList([
             TransformerBlock(dim = embed_dim,
                              num_heads = num_heads,
                              mlp_ratio = 4.0,
-                             act_layer = nn.GELU,
-                             dropout = dropout,
+                             dropout   = 0.1,
                              max_seq_len = max_seq_len,
                              )
                              for _ in range(num_layers)])
 
-        self.norm_layer = nn.LayerNorm(self.embed_dim)
+        self.norm = RMSNorm(self.embed_dim)
         self.head = nn.Linear(embed_dim, vocab_size, bias=False)
         
+        self._init_weights()
         ## RoPE
         self.freqs_cis = precompute_freqs_cis(
             embed_dim // num_heads,
             max_seq_len * 2,
             rope_theta,
         )
-
-        self._init_weights()
 
     def _init_weights(self):
         for module in self.modules():
@@ -70,8 +67,8 @@ class MiniGPT2(nn.Module):
                 module.bias.data.zero_()
                 module.weight.data.fill_(1.0)
 
-    def forward(self, token_ids, embeddings=None):
-        tok_embed = self.tok_emb(token_ids)
+    def forward(self, tok_ids, embeddings=None):
+        tok_embed = self.tok_emb(tok_ids)
 
         if embeddings is not None:  # Prepend explicit embeddings
             tok_embed = torch.cat([embeddings, tok_embed], dim=1)
@@ -79,11 +76,11 @@ class MiniGPT2(nn.Module):
         seq_len = tok_embed.shape[1]
         assert seq_len <= self.max_seq_len, "Cannot forward, model block size is exhausted."
         
-        freqs_cis = self.freqs_cis[:seq_len].to(token_ids.device)
-        for block in self.transformers:
+        freqs_cis = self.freqs_cis[:seq_len].to(tok_ids.device)
+        for block in self.blocks:
             tok_embed, freqs_cis = block(tok_embed, freqs_cis)
 
-        x = self.norm_layer(tok_embed)
+        x = self.norm(tok_embed)
         logits = self.head(x)
 
         return logits, None
@@ -93,12 +90,11 @@ if __name__ == "__main__":
     # Prepare token ids as the input
     bs, seq_len = 5, 278
     vocab_size = 512
-    token_ids = torch.randint(low=0, high=512, size=[bs, seq_len])
+    tok_ids = torch.randint(low=0, high=512, size=[bs, seq_len])
 
     # Build model
     sampler = MiniGPT2(num_layers  = 3,
                        num_heads   = 2,
-                       dropout     = 0.1,
                        embed_dim   = 128,
                        vocab_size  = vocab_size,
                        max_seq_len = 1280,
@@ -106,6 +102,6 @@ if __name__ == "__main__":
     sampler.train()
 
     # Inference
-    logits, _ = sampler(token_ids)
+    logits, _ = sampler(tok_ids)
     print(logits.shape)
     

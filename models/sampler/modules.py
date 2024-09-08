@@ -122,14 +122,13 @@ class FFN(nn.Module):
     def __init__(self,
                  embedding_dim: int,
                  mlp_dim: int,
-                 act: Type[nn.Module] = nn.GELU,
                  dropout: float = 0.0,
                  ) -> None:
         super().__init__()
         self.fc1  = nn.Linear(embedding_dim, mlp_dim)
         self.fc2  = nn.Linear(mlp_dim, embedding_dim)
         self.drop = nn.Dropout(dropout)
-        self.act  = act()
+        self.act  = nn.SiLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
@@ -143,8 +142,7 @@ class TransformerBlock(nn.Module):
                  dim         :int,
                  num_heads   :int,
                  mlp_ratio   :float = 4.0,
-                 act_layer   :Type[nn.Module] = nn.GELU,
-                 dropout     :float = 0.,
+                 dropout     :float = 0.1,
                  max_seq_len :int = 1024,
                  ) -> None:
         super().__init__()
@@ -152,7 +150,7 @@ class TransformerBlock(nn.Module):
         self.norm1 = RMSNorm(dim)
         self.attn  = Attention(dim, num_heads, max_seq_len, dropout)
         self.norm2 = RMSNorm(dim)
-        self.ffn   = FFN(dim, int(dim * mlp_ratio), act_layer, dropout)
+        self.ffn   = FFN(dim, int(dim * mlp_ratio), dropout)
 
     def forward(self, x: torch.Tensor, freqs_cis: torch.Tensor):
         shortcut = x

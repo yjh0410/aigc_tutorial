@@ -26,6 +26,6 @@ from .sampler import build_gpt_sampler
 
 def build_sampler(args, num_vq_embeds):
     if 'gpt' in args.sampler:
-        return build_gpt_sampler(args.sampler, num_vq_embeds)
+        return build_gpt_sampler(args, num_vq_embeds)
     
     raise NotImplementedError(f"We could not to build sampler for model - {args.model}")
