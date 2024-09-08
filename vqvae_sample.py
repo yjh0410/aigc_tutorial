@@ -32,8 +32,8 @@ def parse_args():
     # Model
     parser.add_argument('--model', type=str, default='vqvae',
                         help='model name')
-    parser.add_argument('--sampler_scale', type=str, default='nano',
-                        help='model name')
+    parser.add_argument('--sampler', default="gpt_small", type=str,
+                        help='transformer sampler')
     parser.add_argument('--weight_vae', default=None, type=str,
                         help='Load the checkpoint of the vae model.')
     parser.add_argument('--weight_sampler', default=None, type=str,

@@ -54,8 +54,8 @@ def parse_args():
     # Model
     parser.add_argument('--model', type=str, default='vqvae',
                         help='model name')
-    parser.add_argument('--sampler_scale', default="tiny", type=str,
-                        help='scale of MiniGPT')
+    parser.add_argument('--sampler', default="gpt_small", type=str,
+                        help='transformer sampler')
     parser.add_argument('--resume', default=None, type=str,
                         help='keep training')
     parser.add_argument('--vqvae_checkpoint', default=None, type=str,
