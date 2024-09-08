@@ -13,17 +13,12 @@ class CodeBook(nn.Module):
         self.num_embeddings = num_embeddings  # K defined in paper
 
         # ---------- Model parameters ----------
-        self.embedding  = nn.Embedding(num_embeddings, latent_dim)  # [K, D]
         self.input_proj = nn.Conv2d(hidden_dim, latent_dim, kernel_size=1)
+        self.embedding  = nn.Embedding(num_embeddings, latent_dim)  # [K, D]
+        self.embedding.weight.data.uniform_(-1.0 / self.num_embeddings, 1.0 / self.num_embeddings)
 
         self.register_buffer("cluster_size", torch.zeros(num_embeddings))
         self.register_buffer("embedding_ema", self.embedding.weight.clone())
-
-        # Initialize all layers
-        self.init_weights()
-
-    def init_weights(self):
-        self.embedding.weight.data.uniform_(-1.0 / self.num_embeddings, 1.0 / self.num_embeddings)
 
     def forward(self, z):
         # Input projection
@@ -70,16 +65,17 @@ class CodeBook(nn.Module):
 
             # MSE loss between Z_q and Z_E
             emb_loss = F.mse_loss(z_q.detach(), z, reduction='mean')
+            vq_output['emb_loss'] = emb_loss
 
             # EMA update cluster size
             cur_cluster_size = torch.sum(min_indices_ot, dim=0)  # [BHW, K] -> [K,], cluster size for each embed
-            self.cluster_size = self.cluster_size * self.ema_decay \
-                                + cur_cluster_size * (1 - self.ema_decay)
+            self.cluster_size.data.mul_(self.ema_decay).add_(
+                cur_cluster_size, alpha=1 - self.ema_decay
+            )
 
             # EMA update embeds
             embed_sum = min_indices_ot.transpose(0, 1).float() @  z_flattened  #[K, BHW] x [BHW, C] = [K, C]
-            self.embedding_ema = self.embedding_ema * self.ema_decay \
-                                        + embed_sum * (1 - self.ema_decay)
+            self.embedding_ema.data.mul_(self.ema_decay).add_(embed_sum, alpha=1 - self.ema_decay)
 
             # Normalized embeddings
             n = self.cluster_size.sum()
@@ -89,7 +85,10 @@ class CodeBook(nn.Module):
             # Updata codebook with EMA result
             self.embedding.weight.data.copy_(embed_normalized)
 
-            vq_output['emb_loss'] = emb_loss
+            # Perplexity
+            e_mean = torch.mean(min_indices_ot.float(), dim=0)
+            perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
+            vq_output['perplexity'] = perplexity
 
         return vq_output
     
