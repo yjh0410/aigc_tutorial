@@ -5,20 +5,23 @@ import torch.nn.functional as F
 
 # ------------------ VQ-VAE Codebooks ------------------
 class CodeBook(nn.Module):
-    def __init__(self, hidden_dim=256, latent_dim=128, num_embeddings=512):
+    def __init__(self, hidden_dim=256, latent_dim=128, num_embeddings=512, use_ema_embed=False):
         super(CodeBook, self).__init__()
         # ---------- Basic parameters ----------
         self.ema_decay = 0.99
         self.latent_dim = latent_dim      # D defined in paper
         self.num_embeddings = num_embeddings  # K defined in paper
+        self.use_ema_embed  = use_ema_embed
 
         # ---------- Model parameters ----------
         self.input_proj = nn.Conv2d(hidden_dim, latent_dim, kernel_size=1)
         self.embedding  = nn.Embedding(num_embeddings, latent_dim)  # [K, D]
         self.embedding.weight.data.uniform_(-1.0 / self.num_embeddings, 1.0 / self.num_embeddings)
 
-        self.register_buffer("cluster_size", torch.zeros(num_embeddings))
-        self.register_buffer("embedding_ema", self.embedding.weight.clone())
+        if self.use_ema_embed:
+            print(" Use EMA trick for VQ-VAE ...")
+            self.register_buffer("cluster_size", torch.zeros(num_embeddings))
+            self.register_buffer("embedding_ema", self.embedding.weight.clone())
 
     def forward(self, z):
         # Input projection
@@ -50,44 +53,37 @@ class CodeBook(nn.Module):
 
         # --------------- Loss of Vector-quantizer ---------------
         if self.training:
-            # # Embedding loss
-            # beta = 0.25
-            # embedding_loss = F.mse_loss(z_q.detach(), z, reduction='mean') + \
-            #                  F.mse_loss(z.detach(), z_q, reduction='mean') * beta
-            # # Perplexity
-            # min_indices_ot = torch.zeros(min_indices.shape[0], self.num_embeddings).to(z.device) # [BHW, K]
-            # min_indices_ot.scatter_(1, min_indices.unsqueeze(-1), 1)
-            # e_mean = torch.mean(min_indices_ot, dim=0)
-            # perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
+            if self.use_ema_embed:
+                # MSE loss between Z_q and Z_E
+                emb_loss = F.mse_loss(z_q.detach(), z, reduction='mean')
 
-            # vq_output['emb_loss'] = embedding_loss
-            # vq_output['perplexity'] = perplexity
+                # EMA update cluster size
+                cur_cluster_size = torch.sum(min_indices_ot, dim=0)  # [BHW, K] -> [K,], cluster size for each embed
+                self.cluster_size.data.mul_(self.ema_decay).add_(
+                    cur_cluster_size, alpha=1 - self.ema_decay
+                )
 
-            # MSE loss between Z_q and Z_E
-            emb_loss = F.mse_loss(z_q.detach(), z, reduction='mean')
-            vq_output['emb_loss'] = emb_loss
+                # EMA update embeds
+                embed_sum = min_indices_ot.transpose(0, 1).float() @  z_flattened  #[K, BHW] x [BHW, C] = [K, C]
+                self.embedding_ema.data.mul_(self.ema_decay).add_(embed_sum, alpha=1 - self.ema_decay)
 
-            # EMA update cluster size
-            cur_cluster_size = torch.sum(min_indices_ot, dim=0)  # [BHW, K] -> [K,], cluster size for each embed
-            self.cluster_size.data.mul_(self.ema_decay).add_(
-                cur_cluster_size, alpha=1 - self.ema_decay
-            )
+                # Normalized embeddings
+                n = self.cluster_size.sum()
+                cluster_size = (self.cluster_size + 1e-5) / (n + self.num_embeddings * 1e-5) * n
+                embed_normalized = self.embedding_ema / cluster_size.unsqueeze(1)
 
-            # EMA update embeds
-            embed_sum = min_indices_ot.transpose(0, 1).float() @  z_flattened  #[K, BHW] x [BHW, C] = [K, C]
-            self.embedding_ema.data.mul_(self.ema_decay).add_(embed_sum, alpha=1 - self.ema_decay)
-
-            # Normalized embeddings
-            n = self.cluster_size.sum()
-            cluster_size = (self.cluster_size + 1e-5) / (n + self.num_embeddings * 1e-5) * n
-            embed_normalized = self.embedding_ema / cluster_size.unsqueeze(1)
-
-            # Updata codebook with EMA result
-            self.embedding.weight.data.copy_(embed_normalized)
-
+                # Updata codebook with EMA result
+                self.embedding.weight.data.copy_(embed_normalized)
+            else:
+                # Embedding loss
+                beta = 0.25
+                emb_loss = F.mse_loss(z_q.detach(), z, reduction='mean') + \
+                           F.mse_loss(z.detach(), z_q, reduction='mean') * beta
             # Perplexity
             e_mean = torch.mean(min_indices_ot.float(), dim=0)
             perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
+
+            vq_output['emb_loss'] = emb_loss
             vq_output['perplexity'] = perplexity
 
         return vq_output

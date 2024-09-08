@@ -23,7 +23,7 @@ class VqVAE(nn.Module):
         
         self.encoder  = VqVaeEncoder(img_dim, hidden_dim)
         self.decoder  = VqVaeDecoder(img_dim, hidden_dim, latent_dim)
-        self.codebook = CodeBook(hidden_dim, latent_dim, num_embeddings)
+        self.codebook = CodeBook(hidden_dim, latent_dim, num_embeddings, use_ema_embed=True)
     
     def compute_loss(self, x, x_rec, vq_output):
         # ----------- Reconstruction loss -----------
