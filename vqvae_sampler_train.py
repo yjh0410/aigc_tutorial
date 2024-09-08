@@ -155,7 +155,7 @@ def main():
 
 # ------------------------- Build Optimzier & Scheduler -------------------------
     decay, no_decay = set(), set()
-    for mn, m in sampler.transformers.named_modules():
+    for mn, m in sampler.transformer.named_modules():
         for pn, p in m.named_parameters():
             fpn = f"{mn}.{pn}" if mn else pn
 
@@ -168,7 +168,7 @@ def main():
             elif pn.endswith("weight") and isinstance(m, torch.nn.Embedding):
                 no_decay.add(fpn)
 
-    param_dict = {pn: p for pn, p in sampler.transformers.named_parameters()}
+    param_dict = {pn: p for pn, p in sampler.transformer.named_parameters()}
     optim_groups = [
         {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": 0.01},
         {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
