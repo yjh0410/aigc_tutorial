@@ -11,7 +11,7 @@ def build_vqvae_sampler(scale='tiny', num_vq_embeds=1024):
             'num_layers': 32,
             'num_heads': 25,
             'embed_dim': 1600,
-            'max_seq_len': 1024,
+            'max_seq_len': 512,
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
@@ -20,7 +20,7 @@ def build_vqvae_sampler(scale='tiny', num_vq_embeds=1024):
             'num_layers': 24,
             'num_heads': 16,
             'embed_dim': 1024,
-            'max_seq_len': 1024,
+            'max_seq_len': 512,
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
@@ -29,7 +29,7 @@ def build_vqvae_sampler(scale='tiny', num_vq_embeds=1024):
             'num_layers': 12,
             'num_heads': 12,
             'embed_dim': 768,
-            'max_seq_len': 1024,
+            'max_seq_len': 512,
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
@@ -38,7 +38,7 @@ def build_vqvae_sampler(scale='tiny', num_vq_embeds=1024):
             'num_layers': 10,
             'num_heads': 8,
             'embed_dim': 512,
-            'max_seq_len': 1024,
+            'max_seq_len': 512,
             'rope_theta': 50000,
             'sos_token_id': 0,
             }
