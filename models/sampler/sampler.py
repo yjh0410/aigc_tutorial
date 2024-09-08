@@ -58,7 +58,7 @@ class GPTSampler(nn.Module):
         return tok_ids
 
     def forward(self, tok_ids):
-        # Append the sos token id
+        # Set SOS token
         sos_tokens = torch.ones(tok_ids.shape[0], 1) * self.sos_token
         sos_tokens = sos_tokens.long().to(tok_ids.device)
 
