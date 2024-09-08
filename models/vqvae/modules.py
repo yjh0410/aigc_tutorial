@@ -163,18 +163,16 @@ class FFN(nn.Module):
                  dropout: float = 0.0,
                  ) -> None:
         super().__init__()
-        self.fc1   = nn.Linear(embedding_dim, mlp_dim)
-        self.drop1 = nn.Dropout(dropout)
-        self.fc2   = nn.Linear(mlp_dim, embedding_dim)
-        self.drop2 = nn.Dropout(dropout)
-        self.act   = act()
+        self.fc1  = nn.Linear(embedding_dim, mlp_dim)
+        self.fc2  = nn.Linear(mlp_dim, embedding_dim)
+        self.drop = nn.Dropout(dropout)
+        self.act  = act()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.fc1(x)
         x = self.act(x)
-        x = self.drop1(x)
         x = self.fc2(x)
-        x = self.drop2(x)
+        x = self.drop(x)
         return x
 
 class TransformerBlock(nn.Module):

@@ -114,11 +114,11 @@ def sample(args, device):
     vqvae_model = vqvae_model.to(device).eval()
 
     # Build Sampler
-    vae_sampler = build_sampler(args, vqvae_model.num_embeddings)
+    vqvae_sampler = build_sampler(args, vqvae_model.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
-        vae_sampler.load_state_dict(checkpoint["model"])
-    vae_sampler = vae_sampler.to(device).eval()
+        vqvae_sampler.load_state_dict(checkpoint["model"])
+    vqvae_sampler = vqvae_sampler.to(device).eval()
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model)
@@ -143,12 +143,12 @@ def sample(args, device):
         num_steps = seq_len - init_seq_len
 
         # Set SOS token id as the condition
-        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vae_sampler.sos_token
+        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqvae_sampler.sos_token
         sos_tokens = sos_tokens.long().to(init_tok_ids.device)
 
         # Sample by NTP
         print(" - Sampling by next-token-prediction (NTP) paradigm ...")
-        tok_ids = vae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
+        tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
 
         # Get embeddings
         sampled_z_q = vqvae_model.codebook.embedding(tok_ids.view(-1))
