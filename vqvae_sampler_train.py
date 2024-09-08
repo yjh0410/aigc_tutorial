@@ -86,7 +86,7 @@ def main():
     setup_seed(args.seed)
 
     # Path to save model
-    args.output_dir = os.path.join(args.output_dir, args.dataset, args.model, f"sampler_{args.sampler_scale}")
+    args.output_dir = os.path.join(args.output_dir, args.dataset, args.model, args.sampler)
     os.makedirs(args.output_dir, exist_ok=True)
     
     # ------------------------- Build DDP environment -------------------------
