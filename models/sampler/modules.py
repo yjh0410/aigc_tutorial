@@ -46,8 +46,8 @@ class Attention(nn.Module):
     def __init__(self,
                  dim       :int,
                  num_heads :int   = 8,
-                 dropout   :float = 0.,
                  max_seq_len :int = 1024,
+                 dropout   :float = 0.,
                  ):
         super().__init__()
         # --------------- Basic parameters ---------------
