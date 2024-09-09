@@ -66,16 +66,6 @@ class GPTSampler(nn.Module):
         input_tok_ids = torch.cat((sos_tokens, tok_ids), dim=1)
         logits, _ = self.transformer(input_tok_ids[:, :-1])
 
-        # # Randomly mask token ids
-        # mask = torch.bernoulli(0.5 * torch.ones(tok_ids.shape, device=tok_ids.device))
-        # mask = mask.round().to(dtype=torch.int64)
-        # random_tok_ids = torch.randint_like(tok_ids, self.vocab_size)
-        # new_tok_ids = mask * tok_ids + (1 - mask) * random_tok_ids
-
-        # # Append sos token id
-        # new_tok_ids = torch.cat((sos_tokens, new_tok_ids), dim=1)
-        # logits, _ = self.transformer(new_tok_ids[:, :-1])
-
         output = {
             'logits': logits,
         }

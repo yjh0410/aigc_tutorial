@@ -8,26 +8,24 @@ from typing import Type, Tuple
 # ----------- Transformer modules -----------
 def scaled_dot_product_attention(query, key, value, attn_mask=None):
     """
-    计算缩放点积注意力机制
     :param query: Query 向量 (batch_size, n_heads, seq_len, d_k)
     :param key: Key 向量 (batch_size, n_heads, seq_len, d_k)
     :param value: Value 向量 (batch_size, n_heads, seq_len, d_v)
     :param attn_mask: 注意力掩码 (batch_size, n_heads, seq_len, seq_len)
     :return: 输出向量 (batch_size, n_heads, seq_len, d_v)
     """
-    # (batch_size, n_heads, seq_len, seq_len)
-    scores = torch.matmul(query, key.transpose(-2, -1))
+    scores = torch.matmul(query, key.transpose(-2, -1))  # (batch_size, n_heads, seq_len, seq_len)
     
     dk = torch.tensor(key.size(-1), dtype=torch.float32)  # d_k
-    scores = scores / torch.sqrt(dk)
-
+    scores = scores / torch.sqrt(dk)  # 缩放点积
+    
     if attn_mask is not None:
-        attn_mask_ = attn_mask[:, scores.shape[-2], scores.shape[-1]]
-        scores = scores.masked_fill(attn_mask_ == 0, float("-inf"))
-
-    attn_weights = F.softmax(scores, dim=-1)
-    output = torch.matmul(attn_weights, value)
-
+        attn_mask_ = attn_mask[:, :, :scores.shape[-2], :scores.shape[-1]]
+        scores = scores.masked_fill(attn_mask_ == 0, float('-inf'))
+    attn_weights = F.softmax(scores, dim=-1)  # (batch_size, n_heads, seq_len, seq_len)
+    
+    output = torch.matmul(attn_weights, value)  # (batch_size, n_heads, seq_len, d_v)
+    
     return output
 
 class RMSNorm(torch.nn.Module):
@@ -48,8 +46,8 @@ class Attention(nn.Module):
     def __init__(self,
                  dim       :int,
                  num_heads :int   = 8,
+                 dropout   :float = 0.,
                  max_seq_len :int = 1024,
-                 dropout   :float = 0.
                  ):
         super().__init__()
         # --------------- Basic parameters ---------------
@@ -59,15 +57,16 @@ class Attention(nn.Module):
         self.scale = self.head_dim ** -0.5
         self.max_seq_len = max_seq_len
 
-        self.register_buffer(
-            "attn_mask", torch.ones(1, max_seq_len, max_seq_len, dtype=torch.bool).tril(diagonal=0)
-        )
-
         # --------------- Network parameters ---------------
-        self.qkv_proj  = nn.Linear(dim, dim * 3)
+        self.qkv_proj = nn.Linear(dim, dim * 3)
         self.attn_drop = nn.Dropout(dropout)
         self.out_proj  = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(dropout)
+
+        # Causal mask: [bs, n_head, seq_len, seq_len]
+        self.register_buffer("attn_mask", torch.ones([1, 1, max_seq_len, max_seq_len],
+                                                     dtype=torch.bool,
+                                                     ).tril(diagonal=0))
 
     def apply_rotary_emb(
         self,
@@ -97,7 +96,7 @@ class Attention(nn.Module):
         bs, seq_len, _ = x.shape
         # ----------------- Input proj -----------------
         q, k, v = torch.chunk(self.qkv_proj(x), chunks=3, dim=2)
-        ## [B, N, C] -> [B, N, H, C_h] -> [B, H, N, C_h]
+        ## [bs, seq_len, n_head, c] -> [bs, seq_len, n_head, d_head]
         q = q.view(bs, seq_len, self.num_heads, self.head_dim)
         k = k.view(bs, seq_len, self.num_heads, self.head_dim)
         v = v.view(bs, seq_len, self.num_heads, self.head_dim)
@@ -105,13 +104,16 @@ class Attention(nn.Module):
         # Add RoPE
         q, k = self.apply_rotary_emb(q, k, freqs_cis=freqs_cis)
 
+        # [bs, seq_len, n_head, d_head] -> [bs, n_head, seq_len, d_head]
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
         # ----------------- Multi-head Attn -----------------
-        try:
-            x = F.scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask)
-        except:
-            x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask)
+        x = scaled_dot_product_attention(q, k, v, attn_mask=self.attn_mask)
 
         # ----------------- Output -----------------
+        # [bs, n_head, seq_len, d_head] -> [bs, seq_len, n_head, d_head] -> [bs, seq_len, c]
         x = x.permute(0, 2, 1, 3).contiguous().view(bs, seq_len, -1)
         x = self.out_proj(x)
         x = self.proj_drop(x)
