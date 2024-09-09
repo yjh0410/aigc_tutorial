@@ -20,7 +20,7 @@ def parse_args():
                         help='random seed.')
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='use cuda')
-    parser.add_argument('--sample', action='store_true', default=False,
+    parser.add_argument('--task', type=str, default='sample',
                         help='sample or reconstruct.')
     # Dataset
     parser.add_argument('--dataset', type=str, default='cifar10',
@@ -100,7 +100,7 @@ def reconstruction(args, device):
             img_id += 1
 
 @torch.no_grad
-def sample(args, device):
+def completion(args, device):
     # Build Dataset
     dataset    = build_dataset(args, is_train=False)
     dataloader = build_dataloader(args, dataset, is_train=False)
@@ -123,9 +123,9 @@ def sample(args, device):
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model)
     output_dir_org = os.path.join(output_dir, 'org')
-    output_dir_rec = os.path.join(output_dir, 'sample')
+    output_dir_completion = os.path.join(output_dir, 'completion')
     os.makedirs(output_dir_org, exist_ok=True)
-    os.makedirs(output_dir_rec, exist_ok=True)
+    os.makedirs(output_dir_completion, exist_ok=True)
 
     # ---------------- Reconstruction pipeline ----------------
     img_id = 0
@@ -172,12 +172,73 @@ def sample(args, device):
 
             print(f" =========== Image ID-[{img_id}] / [{len(dataloader) * images.shape[0]}] ============ ")
             cv2.imwrite(os.path.join(output_dir_org, f"gt_{img_id}.png"), x_org)
-            cv2.imwrite(os.path.join(output_dir_rec, f"rec_{img_id}.png"), x_hat)
+            cv2.imwrite(os.path.join(output_dir_completion, f"completion_{img_id}.png"), x_hat)
 
             cv2.imshow(f"original & reconstruct", x_vis)
             cv2.waitKey(0)
 
             img_id += 1
+
+@torch.no_grad
+def sample(args, device):
+    # Build Model
+    vqvae_model = build_model(args)
+    if args.weight_vae is not None:
+        print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.weight_vae} ...')
+        checkpoint = torch.load(args.weight_vae, map_location='cpu')
+        vqvae_model.load_state_dict(checkpoint["model"])
+    vqvae_model = vqvae_model.to(device).eval()
+
+    # Build Sampler
+    vqvae_sampler = build_sampler(args, vqvae_model.num_embeddings)
+    if args.weight_sampler is not None:
+        checkpoint = torch.load(args.weight_sampler, map_location='cpu')
+        vqvae_sampler.load_state_dict(checkpoint["model"])
+    vqvae_sampler = vqvae_sampler.to(device).eval()
+
+    # Output path
+    output_dir = os.path.join("result", args.dataset, args.model, 'sample')
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ---------------- Reconstruction pipeline ----------------
+    img_id = 0
+    for img_id in range(120):
+        # 16 x 16 latent size for VQ-VAE train on the CelebA
+        latent_h = 16
+        latent_w = 16
+        latent_dim = vqvae_model.latent_dim
+
+        # Initial token ids
+        init_tok_ids = torch.zeros([1, 0], dtype=torch.long).cuda()
+        num_steps = init_tok_ids.shape[1]
+
+        # Set SOS token id as the condition
+        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqvae_sampler.sos_token
+        sos_tokens = sos_tokens.long().to(init_tok_ids.device)
+
+        # Sample by NTP
+        print(" - Sampling by next-token-prediction (NTP) paradigm ...")
+        tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
+
+        # Get embeddings
+        sampled_z_q = vqvae_model.codebook.embedding(tok_ids.view(-1))
+        sampled_z_q = sampled_z_q.reshape(1, latent_h, latent_w, latent_dim).permute(0, 3, 1, 2)
+
+        # Decode images from the embeddings
+        x_sampled = vqvae_model.forward_decode(sampled_z_q)
+
+        # Predicted image
+        x_hat = np.clip(x_sampled[0].permute(1, 2, 0).cpu().numpy() * 255., 0.0, 255.)
+        x_hat = x_hat.astype(np.uint8)
+
+        x_hat = cv2.cvtColor(x_hat, cv2.COLOR_RGB2BGR)
+
+        print(f" =========== Image ID-[{img_id}] ============ ")
+        cv2.imwrite(os.path.join(output_dir, f"sampled_{img_id}.png"), x_hat)
+
+        cv2.imshow(f"original & reconstruct", x_hat)
+        cv2.waitKey(0)
+
 
 
 def main():
@@ -195,10 +256,15 @@ def main():
     else:
         device = torch.device("cpu")
 
-    if args.sample:
-        sample(args, device)
-    else:
+    # ------------ Run sampler ------------
+    if args.task == "reconstruction":
         reconstruction(args, device)
+
+    if args.task == "completion":
+        completion(args, device)
+
+    if args.task == "sample":
+        sample(args, device)
         
 
 if __name__ == "__main__":
