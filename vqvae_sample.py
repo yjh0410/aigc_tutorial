@@ -27,6 +27,10 @@ def parse_args():
                         help='dataset name')
     parser.add_argument('--root', type=str, default='/mnt/share/ssd2/dataset',
                         help='path to dataset folder')
+    parser.add_argument('--img_dim', type=int, default=3,
+                        help='number of workers')
+    parser.add_argument('--img_size', type=int, default=64,
+                        help='number of workers')
     parser.add_argument('--num_workers', type=int, default=4,
                         help='number of workers')
     # Model
@@ -181,6 +185,7 @@ def completion(args, device):
 
 @torch.no_grad
 def sample(args, device):
+    args.img_dim = 3
     # Build Model
     vqvae_model = build_model(args)
     if args.weight_vae is not None:
@@ -207,10 +212,10 @@ def sample(args, device):
         latent_h = 16
         latent_w = 16
         latent_dim = vqvae_model.latent_dim
+        num_steps = latent_h * latent_w
 
         # Initial token ids
         init_tok_ids = torch.zeros([1, 0], dtype=torch.long).cuda()
-        num_steps = init_tok_ids.shape[1]
 
         # Set SOS token id as the condition
         sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqvae_sampler.sos_token

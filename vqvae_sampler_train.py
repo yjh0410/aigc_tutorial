@@ -51,6 +51,10 @@ def parse_args():
                         help='dataset name')
     parser.add_argument('--root', type=str, default='/mnt/share/ssd2/dataset',
                         help='path to dataset folder')
+    parser.add_argument('--img_dim', type=int, default=3,
+                        help='number of workers')
+    parser.add_argument('--img_size', type=int, default=64,
+                        help='number of workers')
     # Model
     parser.add_argument('--model', type=str, default='vqvae',
                         help='model name')
