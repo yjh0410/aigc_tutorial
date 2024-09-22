@@ -16,24 +16,32 @@ After training, you could refer to the following command to sample with `VAE`.
 python sample_vae.py --cuda --model vae --dataset mnist --weight path/to/checkpoint
 ```
 
-### Train VqVAE (not complete ...)
+### Train VQ-VAE
 
-- Taking the `CelebA` as the example, you could refer to the following command to train `VqVAE`.
+- Taking the `CelebA` as the example, you could refer to the following command to train `VQ-VAE`.
 ```Shell
-python train_vqvae.py --cuda --max_epoch 100 --eval_epoch 5 --model vqvae --batch_size 128 --dataset celebA --root path/to/CelebA
+python train_vqvae.py --cuda --max_epoch 100 --eval_epoch 5 --model vqvae --batch_size 128 --img_size 64 --dataset celebA --root path/to/CelebA
 ```
 
-After training, you could refer to the following command to evaluate `VqVAE`.
+After training, you could refer to the following command to evaluate `VQ-VAE`.
 - Sample on MNIST
 ```Shell
-python sample_vqvae.py --cuda --model vqvae --dataset celebA --root path/to/CelebA
+python sample_vqvae.py --cuda --model vqvae --img_size 64 --dataset celebA --root path/to/CelebA
 ```
 
-You could also refer to the following command to sample with `VqVAE` and `VqVAESampler`.
+You could also refer to the following command to sample with `VQ-VAE` and `VqVAESampler`.
 ```Shell
-python sample_vqvae.py --cuda --model vqvae --dataset celebA --root path/to/CelebA --sample
+python sample_vqvae.py --cuda --model vqvae --img_size 64 --dataset celebA --root path/to/CelebA --sample
 ```
 
 You could download the pretrained `VqVAE` on `CelebA` dataset from the following link:
 
 `VqVAE` on CelebA: [checkpoint](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqvae_pretrained_on_celebA.pth)
+
+### Train VqGAN
+
+- Taking the `CelebA` as the example, you could refer to the following command to train `VQ-GAN`.
+```Shell
+python vqgan_train.py --cuda --max_epoch 100 --eval_epoch 5 --batch_size 6 --lr 0.000025 --img_size 64 --dataset celebA --root path/to/CelebA
+```
+

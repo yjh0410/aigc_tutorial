@@ -92,8 +92,8 @@ if __name__ == '__main__':
 
     # Prepare an image as the input
     bs, img_dim, img_size = 4, 3, 128
-    hidden_dim = 256
-    latent_dim = 128
+    hidden_dim = 128
+    latent_dim = 64
     x = torch.randn(bs, img_dim, img_size, img_size)
 
     # Build model
@@ -111,6 +111,7 @@ if __name__ == '__main__':
     # Compute FLOPs & Params
     print('==============================')
     model.eval()
+    x = torch.randn(1, img_dim, img_size, img_size)
     flops, params = profile(model, inputs=(x, ), verbose=False)
     print('GFLOPs : {:.2f}'.format(flops / 1e9 * 2))
     print('Params : {:.2f} M'.format(params / 1e6))

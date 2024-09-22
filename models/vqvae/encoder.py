@@ -60,6 +60,7 @@ if __name__ == '__main__':
     # Compute FLOPs & Params
     print('==============================')
     model.eval()
+    x = torch.randn(1, img_dim, img_size, img_size)
     flops, params = profile(model, inputs=(x, ), verbose=False)
     print('GFLOPs : {:.2f}'.format(flops / 1e9 * 2))
     print('Params : {:.2f} M'.format(params / 1e6))

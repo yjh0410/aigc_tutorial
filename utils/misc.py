@@ -280,3 +280,63 @@ def save_sampler(args, model_without_ddp, optimizer, lr_scheduler, epoch):
     }
     checkpoint_path = output_dir / ('checkpoint-{}.pth'.format(epoch))        
     torch.save(to_save, checkpoint_path)
+
+
+# ---------------------- Tools for GAN ----------------------
+def load_gan_model(args, generator, lpips, discriminator, optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D):
+    args.start_epoch = 0
+    if args.resume and args.resume.lower() != 'none':
+        print("=================== Load checkpoint ===================")
+        checkpoint = torch.load(args.resume, map_location='cpu')
+        generator.load_state_dict(checkpoint['generator'])
+        print("Resume checkpoint for Generator: %s" % args.resume)
+        
+        lpips.load_state_dict(checkpoint['lpips'])
+        print("Resume checkpoint for LPIPS: %s" % args.resume)
+        
+        discriminator.load_state_dict(checkpoint['discriminator'])
+        print("Resume checkpoint for Discriminator: %s" % args.resume)
+        
+        # Optimizer for Generator
+        if 'optimizer_G' in checkpoint and 'epoch' in checkpoint and not (hasattr(args, 'eval') and args.eval):
+            print('- Load optimizer from the checkpoint. ')
+            optimizer_G.load_state_dict(checkpoint['optimizer_G'])
+            args.start_epoch = checkpoint['epoch'] + 1
+
+        # Optimizer for Discriminator
+        if 'optimizer_D' in checkpoint and 'epoch' in checkpoint and not (hasattr(args, 'eval') and args.eval):
+            print('- Load optimizer from the checkpoint. ')
+            optimizer_D.load_state_dict(checkpoint['optimizer_D'])
+            args.start_epoch = checkpoint['epoch'] + 1
+
+        # LrScheduler for Generator
+        if 'lr_scheduler_G' in checkpoint:
+            print('- Load lr scheduler from the checkpoint. ')
+            lr_scheduler_G.load_state_dict(checkpoint.pop("lr_scheduler_G"))
+
+        # LrScheduler for Discriminator
+        if 'lr_scheduler_D' in checkpoint:
+            print('- Load lr scheduler from the checkpoint. ')
+            lr_scheduler_D.load_state_dict(checkpoint.pop("lr_scheduler_D"))
+
+def save_gan_model(args, generator, lpips, discriminator, optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D, epoch, metrics=None):
+    output_dir = Path(args.output_dir)
+    to_save = {
+        'generator':      generator.state_dict(),
+        'lpips':          lpips.state_dict(),
+        'discriminator':  discriminator.state_dict(),
+        'optimizer_G':    optimizer_G.state_dict(),
+        'optimizer_D':    optimizer_D.state_dict(),
+        'lr_scheduler_G': lr_scheduler_G.state_dict(),
+        'lr_scheduler_D': lr_scheduler_D.state_dict(),
+        'epoch': epoch,
+        'args': args,
+    }
+    if metrics is None:
+        checkpoint_path = output_dir / ('checkpoint_{}.pth'.format(epoch))
+    else:
+        checkpoint_path = output_dir / ('checkpoint_{}_psnr_{}_ssim_{}.pth'.format(epoch, metrics[0], metrics[1]))
+        to_save['psnr'] = metrics[0]
+        to_save['ssim'] = metrics[1]
+
+    torch.save(to_save, checkpoint_path)

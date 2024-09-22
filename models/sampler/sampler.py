@@ -79,8 +79,8 @@ class GPTSampler(nn.Module):
 # --------------------- Loss functions ---------------------
 def compute_loss(logits, target):
     """
-    pred_scores: [bs, seq_len, c]
-    target_ids:  [bs, seq_len,]
+    logits: [bs, seq_len, c]
+    target: [bs, seq_len,]
     """
     loss = F.cross_entropy(logits.flatten(0, 1),  # [BN, vocab_size]
                            target.flatten(),      # [BN,]

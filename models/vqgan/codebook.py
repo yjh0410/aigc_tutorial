@@ -5,21 +5,21 @@ import torch.nn.functional as F
 
 # ------------------ VQ-GAN Codebooks ------------------
 class CodeBook(nn.Module):
-    def __init__(self, hidden_dim=256, latent_dim=128, num_embeddings=512):
+    def __init__(self, num_embeddings=512, hidden_dim=256, latent_dim=128):
         super(CodeBook, self).__init__()
         # ---------- Basic parameters ----------
-        self.latent_dim     = latent_dim      # D defined in paper
+        self.ema_decay = 0.99
+        self.latent_dim = latent_dim      # D defined in paper
         self.num_embeddings = num_embeddings  # K defined in paper
 
         # ---------- Model parameters ----------
-        self.embedding  = nn.Embedding(num_embeddings, latent_dim)  # [K, D]
         self.input_proj = nn.Conv2d(hidden_dim, latent_dim, kernel_size=1)
-
-        # Initialize all layers
-        self.init_weights()
-
-    def init_weights(self):
+        self.embedding  = nn.Embedding(num_embeddings, latent_dim)  # [K, D]
         self.embedding.weight.data.uniform_(-1.0 / self.num_embeddings, 1.0 / self.num_embeddings)
+
+        print(" Use EMA trick for VQ-VAE ...")
+        self.register_buffer("cluster_size", torch.zeros(num_embeddings))
+        self.register_buffer("embedding_ema", self.embedding.weight.clone())
 
     def forward(self, z):
         # Input projection
@@ -32,7 +32,8 @@ class CodeBook(nn.Module):
         
         # Find closest encodings
         min_indices = torch.argmin(dist, dim=1)  # [BHW,]
-
+        min_indices_ot = F.one_hot(min_indices, num_classes=self.num_embeddings)  # [BHW, K]
+        
         # Index latent vectors
         z_q = self.embedding(min_indices)  # [BHW, C]
         z_q = z_q.view(z.shape)            # [BHW, C] -> [B, H, W, C]
@@ -50,17 +51,32 @@ class CodeBook(nn.Module):
 
         # --------------- Loss of Vector-quantizer ---------------
         if self.training:
-            # Embedding loss
-            beta = 0.25
-            embedding_loss = F.mse_loss(z_q.detach(), z, reduction='mean') + \
-                             F.mse_loss(z.detach(), z_q, reduction='mean') * beta
+            # MSE loss between Z_q and Z_E
+            emb_loss = F.mse_loss(z_q.detach(), z, reduction='mean')
+
+            # EMA update cluster size
+            cur_cluster_size = torch.sum(min_indices_ot, dim=0)  # [BHW, K] -> [K,], cluster size for each embed
+            self.cluster_size.data.mul_(self.ema_decay).add_(
+                cur_cluster_size, alpha=1 - self.ema_decay
+            )
+
+            # EMA update embeds
+            embed_sum = min_indices_ot.transpose(0, 1).float() @  z_flattened  #[K, BHW] x [BHW, C] = [K, C]
+            self.embedding_ema.data.mul_(self.ema_decay).add_(embed_sum, alpha=1 - self.ema_decay)
+
+            # Normalized embeddings
+            n = self.cluster_size.sum()
+            cluster_size = (self.cluster_size + 1e-5) / (n + self.num_embeddings * 1e-5) * n
+            embed_normalized = self.embedding_ema / cluster_size.unsqueeze(1)
+
+            # Updata codebook with EMA result
+            self.embedding.weight.data.copy_(embed_normalized)
+
             # Perplexity
-            min_indices_ot = torch.zeros(min_indices.shape[0], self.num_embeddings).to(z.device) # [BHW, K]
-            min_indices_ot.scatter_(1, min_indices.unsqueeze(-1), 1)
-            e_mean = torch.mean(min_indices_ot, dim=0)
+            e_mean = torch.mean(min_indices_ot.float(), dim=0)
             perplexity = torch.exp(-torch.sum(e_mean * torch.log(e_mean + 1e-10)))
 
-            vq_output['emb_loss'] = embedding_loss
+            vq_output['emb_loss'] = emb_loss
             vq_output['perplexity'] = perplexity
 
         return vq_output
@@ -82,7 +98,6 @@ if __name__ == '__main__':
     vq_output = model(x)
     print("rep_z_q: ",    vq_output['rep_z_q'].shape)
     print("emb_loss: ",   vq_output['emb_loss'])
-    print("perplexity: ", vq_output['perplexity'])
 
     # Compute FLOPs & Params
     print('==============================')
