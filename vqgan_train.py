@@ -159,7 +159,7 @@ def main():
 
     # ------------------------- Build LPIPS -------------------------
     print(' ============= LPIPS Info. ============= ')
-    lpips = LPIPS(feat_extractor="vgg").eval()
+    lpips = LPIPS(feat_extractor="resnet").eval()
     lpips = lpips.to(device)
     print(lpips)
 
