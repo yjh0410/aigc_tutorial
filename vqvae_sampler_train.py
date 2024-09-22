@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument('--vqvae_checkpoint', default=None, type=str,
                         help='Load trained well VAE model from the given checkpoint')
     # Optimizer
-    parser.add_argument('--lr', type=float, default=2e-5,
+    parser.add_argument('--lr', type=float, default=1e-4,
                         help='initial learning rate.')
     parser.add_argument('--weight_decay', type=float, default=0.01,
                         help='initial learning rate.')

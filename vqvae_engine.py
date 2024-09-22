@@ -77,7 +77,7 @@ def train_one_epoch(args,
 
 def train_sampler_one_epoch(args,
                             device,
-                            vqgan,
+                            vqvae,
                             sampler,
                             data_loader,
                             optimizer,
@@ -113,7 +113,7 @@ def train_sampler_one_epoch(args,
 
         # Get token ids
         with torch.no_grad():
-            z_q, tok_ids = vqgan.forward_encode(images)
+            z_q, tok_ids = vqvae.forward_encode(images)
         
         # Inference
         output = sampler(tok_ids.detach())
