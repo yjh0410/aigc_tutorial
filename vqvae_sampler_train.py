@@ -13,7 +13,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from dataset import build_dataset, build_dataloader
 
 # ---------------- Model compoments ----------------
-from models import build_model, build_sampler
+from models.vqvae   import VQVAE
+from models.sampler import build_gpt_sampler
 
 # ---------------- Utils compoments ----------------
 from utils import distributed_utils
@@ -145,15 +146,15 @@ def main():
 
 # ------------------------- Build Model & Sampler -------------------------
     print(" =================== VAE Model info. =================== ")
-    vqvae_model = build_model(args)
+    vqvae = VQVAE(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.vqvae_checkpoint is not None:
         print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.vqvae_checkpoint} ...')
-        vqvae_model.load_state_dict(torch.load(args.vqvae_checkpoint, map_location="cpu").pop("model"))
-    vqvae_model = vqvae_model.eval().to(device)
-    print(vqvae_model)
+        vqvae.load_state_dict(torch.load(args.vqvae_checkpoint, map_location="cpu").pop("model"))
+    vqvae = vqvae.eval().to(device)
+    print(vqvae)
 
     print(" =================== VAE Sampler info. =================== ")
-    sampler = build_sampler(args, vqvae_model.num_embeddings)
+    sampler = build_gpt_sampler(args, vqvae.num_embeddings)
     sampler = sampler.train().to(device)
     print(sampler)
 
@@ -202,7 +203,7 @@ def main():
         # train one epoch
         train_sampler_one_epoch(args,
                                 device,
-                                vqvae_model,
+                                vqvae,
                                 sampler,
                                 train_dataloader,
                                 optimizer,

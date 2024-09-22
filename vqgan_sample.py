@@ -11,7 +11,8 @@ import torch.backends.cudnn as cudnn
 from dataset import build_dataset, build_dataloader
 from metric  import batch_calculate_psnr, batch_calculate_ssim
 
-from models import build_model, build_sampler
+from models.vqgan   import VQGAN
+from models.sampler import build_gpt_sampler
 
 
 def parse_args():
@@ -35,7 +36,7 @@ def parse_args():
     parser.add_argument('--num_workers', type=int, default=4,
                         help='number of workers')
     # Model
-    parser.add_argument('--model', type=str, default='vqvae',
+    parser.add_argument('--model', type=str, default='vqgan',
                         help='model name')
     parser.add_argument('--sampler', default="gpt_small", type=str,
                         help='transformer sampler')
@@ -54,7 +55,7 @@ def reconstruction(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    vqgan = build_model(args)
+    vqgan = VQGAN(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
@@ -111,7 +112,7 @@ def completion(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    vqgan = build_model(args)
+    vqgan = VQGAN(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
@@ -119,11 +120,11 @@ def completion(args, device):
     vqgan = vqgan.to(device).eval()
 
     # Build Sampler
-    vqvae_sampler = build_sampler(args, vqgan.num_embeddings)
+    vqgan_sampler = build_gpt_sampler(args, vqgan.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
-        vqvae_sampler.load_state_dict(checkpoint["model"])
-    vqvae_sampler = vqvae_sampler.to(device).eval()
+        vqgan_sampler.load_state_dict(checkpoint["model"])
+    vqgan_sampler = vqgan_sampler.to(device).eval()
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model)
@@ -148,12 +149,12 @@ def completion(args, device):
         num_steps = seq_len - init_seq_len
 
         # Set SOS token id as the condition
-        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqvae_sampler.sos_token
+        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqgan_sampler.sos_token
         sos_tokens = sos_tokens.long().to(init_tok_ids.device)
 
         # Sample by NTP
         print(" - Sampling by next-token-prediction (NTP) paradigm ...")
-        tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
+        tok_ids = vqgan_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
 
         # Get embeddings
         sampled_z_q = vqgan.codebook.embedding(tok_ids.view(-1))
@@ -188,7 +189,7 @@ def completion(args, device):
 def sample(args, device):
     args.img_dim = 3
     # Build Model
-    vqgan = build_model(args)
+    vqgan = VQGAN(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
@@ -196,11 +197,11 @@ def sample(args, device):
     vqgan = vqgan.to(device).eval()
 
     # Build Sampler
-    vqvae_sampler = build_sampler(args, vqgan.num_embeddings)
+    vqgan_sampler = build_gpt_sampler(args, vqgan.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
-        vqvae_sampler.load_state_dict(checkpoint["model"])
-    vqvae_sampler = vqvae_sampler.to(device).eval()
+        vqgan_sampler.load_state_dict(checkpoint["model"])
+    vqgan_sampler = vqgan_sampler.to(device).eval()
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model, 'sample')
@@ -209,7 +210,7 @@ def sample(args, device):
     # ---------------- Reconstruction pipeline ----------------
     img_id = 0
     for img_id in range(120):
-        # 16 x 16 latent size for VQ-VAE train on the CelebA
+        # 16 x 16 latent size for VQ-GAN train on the CelebA
         latent_h = 16
         latent_w = 16
         latent_dim = vqgan.latent_dim
@@ -219,12 +220,12 @@ def sample(args, device):
         init_tok_ids = torch.zeros([1, 0], dtype=torch.long).cuda()
 
         # Set SOS token id as the condition
-        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqvae_sampler.sos_token
+        sos_tokens = torch.ones(init_tok_ids.shape[0], 1) * vqgan_sampler.sos_token
         sos_tokens = sos_tokens.long().to(init_tok_ids.device)
 
         # Sample by NTP
         print(" - Sampling by next-token-prediction (NTP) paradigm ...")
-        tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
+        tok_ids = vqgan_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
 
         # Get embeddings
         sampled_z_q = vqgan.codebook.embedding(tok_ids.view(-1))
@@ -244,6 +245,7 @@ def sample(args, device):
 
         cv2.imshow(f"original & reconstruct", x_hat)
         cv2.waitKey(0)
+
 
 
 def main():

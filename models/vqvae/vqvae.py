@@ -13,7 +13,7 @@ except:
 
 
 # ------------------ VQ-VAE ------------------
-class VqVAE(nn.Module):
+class VQVAE(nn.Module):
     def __init__(self, img_dim=3, hidden_dim=128, latent_dim=64, num_embeddings=512):
         super().__init__()
         self.img_dim = img_dim
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     x = torch.randn(bs, img_dim, img_size, img_size)
 
     # Build model
-    model = VqVAE(img_dim, hidden_dim, latent_dim)
+    model = VQVAE(img_dim, hidden_dim, latent_dim)
     model.train()
 
     # Inference

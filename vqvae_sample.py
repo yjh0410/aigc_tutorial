@@ -9,8 +9,10 @@ import torch.backends.cudnn as cudnn
 
 # ---------------- Model compoments ----------------
 from dataset import build_dataset, build_dataloader
-from models  import build_model, build_sampler
 from metric  import batch_calculate_psnr, batch_calculate_ssim
+
+from models.vqvae   import VQVAE
+from models.sampler import build_gpt_sampler
 
 
 def parse_args():
@@ -53,12 +55,12 @@ def reconstruction(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    vqvae_model = build_model(args)
+    vqvae = VQVAE(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqvae_model.load_state_dict(checkpoint["model"])
-    vqvae_model = vqvae_model.to(device).eval()
+        vqvae.load_state_dict(checkpoint["model"])
+    vqvae = vqvae.to(device).eval()
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model)
@@ -71,7 +73,7 @@ def reconstruction(args, device):
     img_id = 0
     for sample in dataloader:
         images = sample[0].to(device)
-        output = vqvae_model(images)
+        output = vqvae(images)
         x_rec  = output['x_pred']
 
         for bi in range(images.shape[0]):
@@ -110,15 +112,15 @@ def completion(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    vqvae_model = build_model(args)
+    vqvae = VQVAE(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqvae_model.load_state_dict(checkpoint["model"])
-    vqvae_model = vqvae_model.to(device).eval()
+        vqvae.load_state_dict(checkpoint["model"])
+    vqvae = vqvae.to(device).eval()
 
     # Build Sampler
-    vqvae_sampler = build_sampler(args, vqvae_model.num_embeddings)
+    vqvae_sampler = build_gpt_sampler(args, vqvae.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
         vqvae_sampler.load_state_dict(checkpoint["model"])
@@ -137,7 +139,7 @@ def completion(args, device):
         images = sample[0].to(device)   # original images: [B, C, H, W]
 
         # Encode to latent space
-        z_q, tok_ids = vqvae_model.forward_encode(images)
+        z_q, tok_ids = vqvae.forward_encode(images)
         bs, c, h, w = z_q.shape
         seq_len = tok_ids.shape[1]
 
@@ -155,11 +157,11 @@ def completion(args, device):
         tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
 
         # Get embeddings
-        sampled_z_q = vqvae_model.codebook.embedding(tok_ids.view(-1))
+        sampled_z_q = vqvae.codebook.embedding(tok_ids.view(-1))
         sampled_z_q = sampled_z_q.reshape(bs, h, w, c).permute(0, 3, 1, 2)
 
         # Decode images from the embeddings
-        x_recs = vqvae_model.forward_decode(sampled_z_q)
+        x_recs = vqvae.forward_decode(sampled_z_q)
 
         for bi in range(images.shape[0]):
             # Predicted image
@@ -187,15 +189,15 @@ def completion(args, device):
 def sample(args, device):
     args.img_dim = 3
     # Build Model
-    vqvae_model = build_model(args)
+    vqvae = VQVAE(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-VAE from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqvae_model.load_state_dict(checkpoint["model"])
-    vqvae_model = vqvae_model.to(device).eval()
+        vqvae.load_state_dict(checkpoint["model"])
+    vqvae = vqvae.to(device).eval()
 
     # Build Sampler
-    vqvae_sampler = build_sampler(args, vqvae_model.num_embeddings)
+    vqvae_sampler = build_gpt_sampler(args, vqvae.num_embeddings)
     if args.weight_sampler is not None:
         checkpoint = torch.load(args.weight_sampler, map_location='cpu')
         vqvae_sampler.load_state_dict(checkpoint["model"])
@@ -211,7 +213,7 @@ def sample(args, device):
         # 16 x 16 latent size for VQ-VAE train on the CelebA
         latent_h = 16
         latent_w = 16
-        latent_dim = vqvae_model.latent_dim
+        latent_dim = vqvae.latent_dim
         num_steps = latent_h * latent_w
 
         # Initial token ids
@@ -226,11 +228,11 @@ def sample(args, device):
         tok_ids = vqvae_sampler.sample(init_tok_ids, condition=sos_tokens, num_steps=num_steps)
 
         # Get embeddings
-        sampled_z_q = vqvae_model.codebook.embedding(tok_ids.view(-1))
+        sampled_z_q = vqvae.codebook.embedding(tok_ids.view(-1))
         sampled_z_q = sampled_z_q.reshape(1, latent_h, latent_w, latent_dim).permute(0, 3, 1, 2)
 
         # Decode images from the embeddings
-        x_sampled = vqvae_model.forward_decode(sampled_z_q)
+        x_sampled = vqvae.forward_decode(sampled_z_q)
 
         # Predicted image
         x_hat = np.clip(x_sampled[0].permute(1, 2, 0).cpu().numpy() * 255., 0.0, 255.)

@@ -147,7 +147,7 @@ def main():
 
     # ------------------------- Build VQ-GAN -------------------------
     print(' ============= VQ-GAN Info. ============= ')
-    model = VQGAN(img_dim=args.img_dim, num_embeddings=1024, hidden_dim=512, latent_dim=256)
+    model = VQGAN(img_dim=args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     model = model.to(device)
     print(model)
 

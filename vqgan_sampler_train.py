@@ -13,7 +13,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from dataset import build_dataset, build_dataloader
 
 # ---------------- Model compoments ----------------
-from models import build_model, build_sampler
+from models.vqgan import VQGAN
+from models.sampler import build_gpt_sampler
 
 # ---------------- Utils compoments ----------------
 from utils import distributed_utils
@@ -145,7 +146,7 @@ def main():
 
 # ------------------------- Build Model & Sampler -------------------------
     print(" =================== VAE Model info. =================== ")
-    vqgan = build_model(args)
+    vqgan = VQGAN(img_dim=args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.vqgan_checkpoint is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.vqgan_checkpoint} ...')
         vqgan.load_state_dict(torch.load(args.vqgan_checkpoint, map_location="cpu").pop("model"))
@@ -153,7 +154,7 @@ def main():
     print(vqgan)
 
     print(" =================== VAE Sampler info. =================== ")
-    sampler = build_sampler(args, vqgan.num_embeddings)
+    sampler = build_gpt_sampler(args, vqgan.num_embeddings)
     sampler = sampler.train().to(device)
     print(sampler)
 

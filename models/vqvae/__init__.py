@@ -1,4 +1,4 @@
-from .vqvae import VqVAE
+from .vqvae import VQVAE
 
 def build_vqvae(img_dim):
-    return VqVAE(img_dim, hidden_dim=128, latent_dim=64, num_embeddings=512)
+    return VQVAE(img_dim, hidden_dim=128, latent_dim=64, num_embeddings=512)

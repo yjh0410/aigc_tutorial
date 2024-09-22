@@ -13,7 +13,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from dataset import build_dataset, build_dataloader
 
 # ---------------- Model compoments ----------------
-from models import build_model
+from models.vqvae import VQVAE
 
 # ---------------- Utils compoments ----------------
 from utils import distributed_utils
@@ -145,7 +145,7 @@ def main():
     print('- train dataset size : ', len(train_dataset))
 
     # ------------------------- Build Model -------------------------
-    model = build_model(args)
+    model = VQVAE(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     model.train().to(device)
     print(model)
 
