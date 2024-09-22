@@ -60,12 +60,12 @@ class LPIPS(nn.Module):
         self.feat_extractor = feat_extractor
         if feat_extractor == "resnet":
             print(" - Use ResNet-50 as the feature extractor in LPIPS.")
-            self.feat_model = models.resnet50(weights=None).eval()
+            self.feat_model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1).eval()
             self.feat_dims = [256, 512, 1024, 2048]
             self.num_feats  = 4
         if feat_extractor == "vgg":
             print(" - Use VGG-16 as the feature extractor in LPIPS.")
-            self.feat_model = models.vgg16(weights=None).eval().features
+            self.feat_model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1).eval().features
             self.feat_dims = [64, 128, 256, 512, 512]
             self.num_feats  = 5
 
