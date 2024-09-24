@@ -43,7 +43,7 @@ def train_one_epoch(args,
     optimizer_G.zero_grad()
     optimizer_D.zero_grad()
 
-    disc_start = epoch_size * 1.5
+    disc_start = epoch_size * 1.0
 
     # Train one epoch
     for iter_i, (images, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
