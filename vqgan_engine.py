@@ -16,7 +16,7 @@ def calculate_lambda(last_layer, p_loss, g_loss):
     λ = torch.norm(p_loss_grads) / (torch.norm(g_loss_grads) + 1e-4)
     λ = torch.clamp(λ, 0, 1e4).detach().contiguous()
 
-    return 1.0 * λ
+    return 0.8 * λ
 
 def train_one_epoch(args,
                     device,
@@ -43,7 +43,7 @@ def train_one_epoch(args,
     optimizer_G.zero_grad()
     optimizer_D.zero_grad()
 
-    disc_start = 10000
+    disc_start = epoch_size * 1.5
 
     # Train one epoch
     for iter_i, (images, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
@@ -73,7 +73,7 @@ def train_one_epoch(args,
         real_x = output['x']
         fake_x = output['x_pred']
         disc_fake = pdisc(fake_x)
-        g_loss    = torch.mean(F.relu(1. - disc_fake))
+        g_loss    = -disc_fake.mean()
 
         ploss = lpips(real_x, fake_x)
         rloss = loss_dict['rec_loss']
@@ -101,7 +101,7 @@ def train_one_epoch(args,
         d_loss_fake = torch.mean(F.relu(1. + disc_fake))
 
         # Discriminator loss
-        d_loss = disc_factor * (d_loss_real + d_loss_fake)
+        d_loss = disc_factor * 0.5 * (d_loss_real + d_loss_fake)
 
         # ------------- Backward & Optimize -------------
         # Backward Generator losses
