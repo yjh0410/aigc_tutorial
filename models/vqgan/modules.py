@@ -34,7 +34,7 @@ class ConvModule(nn.Module):
         # ----------- Model parameters -----------
         self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride)
         self.norm = LayerNorm2d(out_dim)
-        self.act  = nn.SiLU(inplace=True)
+        self.act  = nn.ReLU(inplace=True)
 
     def forward(self, x):
         x = self.conv(x)
@@ -56,7 +56,7 @@ class DeConvModule(nn.Module):
         # ----------- Model parameters -----------
         self.conv = nn.ConvTranspose2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride)
         self.norm = LayerNorm2d(out_dim)
-        self.act  = nn.SiLU(inplace=True)
+        self.act  = nn.ReLU(inplace=True)
 
     def forward(self, x):
         x = self.conv(x)
@@ -72,7 +72,7 @@ class PixelShuffle(nn.Module):
         self.expand_conv = nn.Conv2d(in_dim, out_dim * 4, kernel_size=1)
         self.pixel_shuffle = nn.PixelShuffle(upscale_factor=2)
         self.norm = LayerNorm2d(out_dim)
-        self.act = nn.SiLU(inplace=True)
+        self.act = nn.ReLU(inplace=True)
 
     def forward(self, x):
         x = self.expand_conv(x)
