@@ -16,6 +16,7 @@ class VqGanEncoder(nn.Module):
         self.layer_2 = ConvModule(hidden_dim // 2, hidden_dim, kernel_size=4, padding=1, stride=2)
 
         self.layer_3 = ResStage(hidden_dim, hidden_dim, num_blocks=2)
+        self.layer_4 = NonLocalBlock(hidden_dim)
         self.layer_5 = ResStage(hidden_dim, hidden_dim, num_blocks=2)
         
         # Initialize all layers
@@ -32,6 +33,7 @@ class VqGanEncoder(nn.Module):
         x = self.layer_2(x)
 
         x = self.layer_3(x)
+        x = self.layer_4(x)
         x = self.layer_5(x)
         
         return x
