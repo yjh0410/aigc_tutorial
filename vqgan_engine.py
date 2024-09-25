@@ -33,6 +33,7 @@ def train_one_epoch(args,
                     ):
     model.train()
     pdisc.train()
+    lpips.eval()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr_G', SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('lr_D', SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -81,12 +82,11 @@ def train_one_epoch(args,
         pr_loss = 1.0 * ploss + 1.0 * rloss
 
         # Calculate loss weight for GAN loss
+        disc_factor = 1.0 if ni < disc_start else 1.0
         if args.distributed:
             λ = calculate_lambda(model.module.decoder.last_conv.weight, pr_loss, g_loss)
-            disc_factor = 0.0 if ni < disc_start else 1.0
         else:
             λ = calculate_lambda(model.decoder.last_conv.weight, pr_loss, g_loss)
-            disc_factor = 0.0 if ni < disc_start else 1.0
 
         # Generator loss
         vq_loss = ploss + rloss + qloss + λ * disc_factor * g_loss
@@ -107,6 +107,7 @@ def train_one_epoch(args,
         # Backward Generator losses
         optimizer_G.zero_grad()
         vq_loss.backward(retain_graph=True)
+        vq_loss.backward()
 
         # Backward Discriminator losses
         optimizer_D.zero_grad()

@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision.models as models
+
+try:
+    from .resnet import ResNet
+except:
+    from  resnet import ResNet
+
 
 # Frozen BatchNormazlizarion
 class FrozenBatchNorm2d(nn.Module):
@@ -55,19 +60,12 @@ class NetLinLayer(nn.Module):
 
 # ----------- GAN loss modules -----------
 class LPIPS(nn.Module):
-    def __init__(self, feat_extractor='vgg'):
+    def __init__(self,):
         super().__init__()
-        self.feat_extractor = feat_extractor
-        if feat_extractor == "resnet":
-            print(" - Use ResNet-50 as the feature extractor in LPIPS.")
-            self.feat_model = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1).eval()
-            self.feat_dims = [256, 512, 1024, 2048]
-            self.num_feats  = 4
-        if feat_extractor == "vgg":
-            print(" - Use VGG-16 as the feature extractor in LPIPS.")
-            self.feat_model = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1).eval().features
-            self.feat_dims = [64, 128, 256, 512, 512]
-            self.num_feats  = 5
+        print(" - Use ResNet-18 as the feature extractor in LPIPS.")
+        self.feat_model = ResNet(name="resnet18", use_pretrained=True).eval()
+        self.feat_dims  = [64, 128, 256, 512]
+        self.num_feats  = 4
 
         replace_bn_with_frozenbn(self.feat_model)
 
@@ -84,10 +82,7 @@ class LPIPS(nn.Module):
         fake_x_norm = self.preprocess_image(fake_x)
         
         # Extract features
-        if self.feat_extractor == "vgg":
-            real_x_feats, fake_x_feats = self.vgg_feats(real_x_norm, fake_x_norm)
-        if self.feat_extractor == "resnet":
-            real_x_feats, fake_x_feats = self.resnet_feats(real_x_norm, fake_x_norm)
+        real_x_feats, fake_x_feats = self.resnet_feats(real_x_norm, fake_x_norm)
 
         # Layer-wise feature losses
         ploss_list = []
@@ -119,74 +114,10 @@ class LPIPS(nn.Module):
         norm_factor = torch.sqrt(torch.sum(x**2, dim=1, keepdim=True))
         return x / (norm_factor + 1e-10)  # [B, 1, H, W]
 
-    def vgg_feats(self, real_x, fake_x):
-        slices = [self.feat_model[i] for i in range(30)]
-        slice1 = nn.Sequential(*slices[0:4])
-        slice2 = nn.Sequential(*slices[4:9])
-        slice3 = nn.Sequential(*slices[9:16])
-        slice4 = nn.Sequential(*slices[16:23])
-        slice5 = nn.Sequential(*slices[23:30])
-
-        # ------- Feature of Real-X -------
-        real_x_feats = []
-        real_h1 = slice1(real_x)
-        real_x_feats.append(real_h1)
-
-        real_h2 = slice2(real_h1)
-        real_x_feats.append(real_h2)
-        
-        real_h3 = slice3(real_h2)
-        real_x_feats.append(real_h3)
-
-        real_h4 = slice4(real_h3)
-        real_x_feats.append(real_h4)
-
-        real_h5 = slice5(real_h4)
-        real_x_feats.append(real_h5)
-
-        # ------- Feature of Fake-X -------
-        fake_x_feats = []
-        fake_h1 = slice1(fake_x)
-        fake_x_feats.append(fake_h1)
-
-        fake_h2 = slice2(fake_h1)
-        fake_x_feats.append(fake_h2)
-        
-        fake_h3 = slice3(fake_h2)
-        fake_x_feats.append(fake_h3)
-
-        fake_h4 = slice4(fake_h3)
-        fake_x_feats.append(fake_h4)
-
-        fake_h5 = slice5(fake_h4)
-        fake_x_feats.append(fake_h5)
-
-        return real_x_feats, fake_x_feats
-
     def resnet_feats(self, real_x, fake_x):
-        self.layers = {}
+        real_x_feats = self.feat_model(real_x)
+        fake_x_feats = self.feat_model(fake_x)
 
-        def _get_features(name):
-            def hook(module, input, output):
-                self.layers[name] = output
-            return hook
-
-        for name, layer in self.feat_model.named_children():
-            layer.register_forward_hook(_get_features(name))
-
-        # ------- Feature of Real-X -------
-        self.feat_model(real_x)
-        real_x_feats = []
-        for k in self.layers:
-            if k in ["layer1", "layer2", "layer3", "layer4"]:
-                real_x_feats.append(self.layers[k].clone())
-
-        # ------- Feature of Fake-X -------
-        self.feat_model(fake_x)
-        fake_x_feats = []
-        for k in self.layers:
-            if k in ["layer1", "layer2", "layer3", "layer4"]:
-                fake_x_feats.append(self.layers[k].clone())
 
         return real_x_feats, fake_x_feats
 
@@ -201,7 +132,7 @@ if __name__ == '__main__':
     fake_x = torch.ones(bs, img_dim, img_size, img_size, requires_grad=True) * 2
 
     # Build model
-    model = LPIPS(feat_extractor="vgg").eval()
+    model = LPIPS().eval()
 
     # Inference
     ploss = model(real_x, fake_x)
