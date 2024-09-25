@@ -44,7 +44,7 @@ def train_one_epoch(args,
     optimizer_G.zero_grad()
     optimizer_D.zero_grad()
 
-    disc_start = epoch_size * 1.5
+    disc_start = epoch_size
 
     # Train one epoch
     for iter_i, (images, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
@@ -82,7 +82,7 @@ def train_one_epoch(args,
         pr_loss = 1.0 * ploss + 1.0 * rloss
 
         # Calculate loss weight for GAN loss
-        disc_factor = 1.0 if ni < disc_start else 1.0
+        disc_factor = 0.0 if ni < disc_start else 1.0
         if args.distributed:
             λ = calculate_lambda(model.module.decoder.last_conv.weight, pr_loss, g_loss)
         else:
