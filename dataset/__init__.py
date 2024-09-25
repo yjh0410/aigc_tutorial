@@ -28,7 +28,7 @@ def build_dataloader(args, dataset, is_train=False):
     if is_train:
         sampler = data.distributed.DistributedSampler(dataset) if args.distributed else data.RandomSampler(dataset)
         batch_sampler_train = data.BatchSampler(sampler, args.batch_size // args.world_size, drop_last=True if is_train else False)
-        dataloader = data.DataLoader(dataset, batch_sampler=batch_sampler_train, num_workers=args.num_workers, pin_memory=True)
+        dataloader = data.DataLoader(dataset, batch_sampler=batch_sampler_train, num_workers=args.num_workers, pin_memory=False)
     else:
         dataloader = data.DataLoader(dataset=dataset, batch_size=8, shuffle=False, num_workers=args.num_workers)
 
