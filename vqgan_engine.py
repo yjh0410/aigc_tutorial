@@ -35,8 +35,10 @@ def train_one_epoch(args,
     pdisc.train()
     lpips.eval()
     metric_logger = MetricLogger(delimiter="  ")
-    metric_logger.add_meter('lr_G', SmoothedValue(window_size=1, fmt='{value:.6f}'))
-    metric_logger.add_meter('lr_D', SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr_G',    SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('lr_D',    SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    metric_logger.add_meter('gnorm_G', SmoothedValue(window_size=1, fmt='{value:.2f}'))
+    metric_logger.add_meter('gnorm_D', SmoothedValue(window_size=1, fmt='{value:.2f}'))
     header = 'Epoch: [{} / {}]'.format(epoch, args.max_epoch)
     print_freq = 20
     epoch_size = len(data_loader)
@@ -50,6 +52,7 @@ def train_one_epoch(args,
     for iter_i, (images, labels) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
         ni = iter_i + epoch * epoch_size
         nw = args.wp_iters
+        disc_factor = 0.0 if ni < disc_start else 1.0
 
         # Warmup
         if   ni <  nw:
@@ -68,13 +71,34 @@ def train_one_epoch(args,
         output = model(images)
         loss_dict = output['loss_dict']  # include reconstruction loss
 
+        real_x = output['x']
+        fake_x = output['x_pred']
+
+        # ------------- Discriminator loss -------------
+        # Discriminate real images
+        disc_real = pdisc(real_x.detach())
+        d_loss_real = torch.mean(F.relu(1.0 - disc_real))
+
+        # Discriminate fake images
+        disc_fake = pdisc(fake_x.detach())
+        d_loss_fake = torch.mean(F.relu(1.0 + disc_fake))
+
+        # Discriminator loss
+        d_loss = disc_factor * 0.5 * (d_loss_real + d_loss_fake)
+
+        # Backward
+        optimizer_D.zero_grad()
+        d_loss.backward()
+        gnorm_D = torch.nn.utils.clip_grad_norm_(pdisc.parameters(), max_norm=10.0)
+        
+        # Optimize
+        optimizer_D.step()
+
         # ------------- Generator loss -------------
         # We wish the generator to fool the discriminator,
         # so the goal is to make the output as close to 1 as possible.
-        real_x = output['x']
-        fake_x = output['x_pred']
         disc_fake = pdisc(fake_x)
-        g_loss    = -disc_fake.mean()
+        g_loss    = torch.mean(-disc_fake)
 
         ploss = lpips(real_x, fake_x)
         rloss = loss_dict['rec_loss']
@@ -82,7 +106,6 @@ def train_one_epoch(args,
         pr_loss = 1.0 * ploss + 1.0 * rloss
 
         # Calculate loss weight for GAN loss
-        disc_factor = 0.0 if ni < disc_start else 1.0
         if args.distributed:
             λ = calculate_lambda(model.module.decoder.last_conv.weight, pr_loss, g_loss)
         else:
@@ -91,35 +114,13 @@ def train_one_epoch(args,
         # Generator loss
         vq_loss = ploss + rloss + qloss + λ * disc_factor * g_loss
 
-        # ------------- Discriminator loss -------------
-        # Discriminate real images
-        disc_real = pdisc(real_x.detach())
-        d_loss_real = torch.mean(F.relu(1. - disc_real))
-
-        # Discriminate fake images
-        disc_fake = pdisc(fake_x.detach())
-        d_loss_fake = torch.mean(F.relu(1. + disc_fake))
-
-        # Discriminator loss
-        d_loss = disc_factor * 0.5 * (d_loss_real + d_loss_fake)
-
-        # ------------- Backward & Optimize -------------
-        # Backward Generator losses
+        # Backward
         optimizer_G.zero_grad()
-        vq_loss.backward(retain_graph=True)
         vq_loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-
-        # Backward Discriminator losses
-        optimizer_D.zero_grad()
-        d_loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(pdisc.parameters(), max_norm=1.0)
-
+        gnorm_G = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=4.0)
+        
         # Optimize
         optimizer_G.step()
-        optimizer_D.step()
 
         # ------------- Output log info. -------------
         # Logs
@@ -136,6 +137,8 @@ def train_one_epoch(args,
         metric_logger.update(**nloss_dict)
         metric_logger.update(lr_G=lr_G)
         metric_logger.update(lr_D=lr_D)
+        metric_logger.update(gnorm_G=gnorm_G)
+        metric_logger.update(gnorm_D=gnorm_D)
 
         if tblogger is not None:
             """ We use epoch_1000x as the x-axis in tensorboard.

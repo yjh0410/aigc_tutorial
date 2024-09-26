@@ -58,9 +58,9 @@ def parse_args():
     # Optimizer
     parser.add_argument('--optimizer', type=str, default='adam',
                         help='training optimier.')
-    parser.add_argument('--batch_size', type=int, default=6,
+    parser.add_argument('--batch_size', type=int, default=64,
                         help='gradient accumulation')
-    parser.add_argument('--lr', type=float, default=0.000025,
+    parser.add_argument('--lr', type=float, default=0.0001,
                         help='initial learning rate.')
     parser.add_argument('--weight_decay', type=float, default=0.0,
                         help='initial learning rate.')

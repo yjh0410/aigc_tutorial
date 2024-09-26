@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 try:
-    from .modules import ConvModule
+    from .modules import ConvModule, ResStage
 except:
-    from  modules import ConvModule
+    from  modules import ConvModule, ResStage
 
 
 class PatchDiscriminator(nn.Module):
@@ -14,23 +14,21 @@ class PatchDiscriminator(nn.Module):
         # ------------ Model parameters ------------
         layers = [ConvModule(in_dim, ndf, kernel_size=4, padding=1, stride=2)]
 
-        num_filters_mult = 1
+        in_channels = ndf
+        out_channels = ndf * 2
         for i in range(1, n_layers + 1):
-            num_filters_mult_last = num_filters_mult
-            num_filters_mult = min(2 ** i, 8)
+            layers.append(ConvModule(in_channels, out_channels, kernel_size=4, padding=1, stride=2))
+            layers.append(ResStage(out_channels, out_channels, num_blocks=1))
 
-            in_dim_tmp  = ndf * num_filters_mult_last
-            out_dim_tmp = ndf * num_filters_mult
-            stride = 2 if i < n_layers else 1
-            layers.append(ConvModule(in_dim_tmp, out_dim_tmp, kernel_size=4, padding=1, stride=stride))
+            in_channels = out_channels
+            out_channels = out_channels * (2 if i < 3 else 1)
 
-        layers.append(nn.Conv2d(out_dim_tmp, 1, kernel_size=4, padding=1, stride=1))
+        layers.append(nn.Conv2d(out_channels, 1, kernel_size=3, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
-        self.train_iters += 1
         return self.layers(x)
-
+    
 
 if __name__ == '__main__':
     import torch
