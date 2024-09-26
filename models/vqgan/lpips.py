@@ -63,8 +63,8 @@ class LPIPS(nn.Module):
     def __init__(self,):
         super().__init__()
         print(" - Use ResNet-18 as the feature extractor in LPIPS.")
-        self.feat_model = ResNet(name="resnet50", use_pretrained=True).eval()
-        self.feat_dims  = [256, 512, 1024, 2048]
+        self.feat_model = ResNet(name="resnet18", use_pretrained=True).eval()
+        self.feat_dims  = self.feat_model.feat_dims
         self.num_feats  = 4
 
         replace_bn_with_frozenbn(self.feat_model)
