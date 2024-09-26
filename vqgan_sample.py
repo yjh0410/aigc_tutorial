@@ -22,7 +22,7 @@ def parse_args():
                         help='random seed.')
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='use cuda')
-    parser.add_argument('--task', type=str, default='sample',
+    parser.add_argument('--task', type=str, default='reconstruction',
                         help='sample or reconstruct.')
     # Dataset
     parser.add_argument('--dataset', type=str, default='cifar10',
@@ -59,7 +59,7 @@ def reconstruction(args, device):
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqgan.load_state_dict(checkpoint["model"])
+        vqgan.load_state_dict(checkpoint["generator"])
     vqgan = vqgan.to(device).eval()
 
     # Output path

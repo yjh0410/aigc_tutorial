@@ -149,7 +149,7 @@ def main():
     vqgan = VQGAN(img_dim=args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
     if args.vqgan_checkpoint is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.vqgan_checkpoint} ...')
-        vqgan.load_state_dict(torch.load(args.vqgan_checkpoint, map_location="cpu").pop("model"))
+        vqgan.load_state_dict(torch.load(args.vqgan_checkpoint, map_location="cpu").pop("generator"))
     vqgan = vqgan.eval().to(device)
     print(vqgan)
 
