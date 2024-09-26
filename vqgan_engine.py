@@ -109,10 +109,14 @@ def train_one_epoch(args,
         vq_loss.backward(retain_graph=True)
         vq_loss.backward()
 
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=4.0)
+
         # Backward Discriminator losses
         optimizer_D.zero_grad()
         d_loss.backward()
-        
+
+        torch.nn.utils.clip_grad_norm_(pdisc.parameters(), max_norm=4.0)
+
         # Optimize
         optimizer_G.step()
         optimizer_D.step()
