@@ -7,8 +7,7 @@
 *.txt
 weights
 __pycache__
-dataset/cifar/
-dataset/cifar_data/
-dataset/mnist_data/
+cifar_data/
+mnist_data/
 log/
 result/
