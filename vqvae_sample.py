@@ -22,7 +22,7 @@ def parse_args():
                         help='random seed.')
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='use cuda')
-    parser.add_argument('--task', type=str, default='sample',
+    parser.add_argument('--task', type=str, default='reconstruction',
                         help='sample or reconstruct.')
     # Dataset
     parser.add_argument('--dataset', type=str, default='cifar10',
