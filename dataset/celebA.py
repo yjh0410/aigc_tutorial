@@ -9,10 +9,11 @@ class CelebADataset(data.Dataset):
     def __init__(self, args, is_train=False):
         super().__init__()
         # ----------------- basic parameters -----------------
-        self.img_size   = 64
+        self.img_size   = args.img_size
         self.is_train   = is_train
         self.pixel_mean = [0.0, 0.0, 0.0]
         self.pixel_std  = [1.0, 1.0, 1.0]
+        print("Image size: {}".format(self.img_size))
         print("Pixel mean: {}".format(self.pixel_mean))
         print("Pixel std:  {}".format(self.pixel_std))
         self.image_set = 'train' if is_train else 'val'
