@@ -34,14 +34,17 @@ You could also refer to the following command to sample with `VQ-VAE` and `VqVAE
 python sample_vqvae.py --cuda --model vqvae --img_size 64 --dataset celebA --root path/to/CelebA --sample
 ```
 
-You could download the pretrained `VqVAE` on `CelebA` dataset from the following link:
+You could download the pretrained `VQ-VAE` on `CelebA` dataset from the following link:
 
-`VqVAE` on CelebA: [checkpoint](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqvae_pretrained_on_celebA.pth)
+- `VQ-VAE` on CelebA with image size of 64: [vqvae_celebA_size_64](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqvae_on_celebA_size_64.pth)
 
-### Train VqGAN
+- `VQ-VAE` on CelebA with image size of 128: [vqvae_celebA_size_128](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqvae_on_celebA_size_128.pth)
+
+- GPTSampler for `VQ-VAE` on CelebA with image size of 64: [vqvae_sampler_gpt_small_celebA_size_64](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqvae_sampler_gpt_small_celebA_size_64.pth)
+### Train VQ-GAN
 
 - Taking the `CelebA` as the example, you could refer to the following command to train `VQ-GAN`.
 ```Shell
-python vqgan_train.py --cuda --max_epoch 100 --eval_epoch 5 --batch_size 6 --lr 0.000025 --img_size 64 --dataset celebA --root path/to/CelebA
+python vqgan_train.py --cuda --max_epoch 100 --eval_epoch 5 --batch_size 16 --lr 0.000025 --img_size 64 --dataset celebA --root path/to/CelebA
 ```
 
