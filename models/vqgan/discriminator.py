@@ -12,18 +12,21 @@ class PatchDiscriminator(nn.Module):
         super(PatchDiscriminator, self).__init__()
         self.train_iters = 0
         # ------------ Model parameters ------------
-        layers = [ConvModule(in_dim, ndf, kernel_size=4, padding=1, stride=2)]
+        layers = [nn.Conv2d(in_dim, ndf, kernel_size=4, padding=1, stride=2),
+                  nn.LeakyReLU(0.2, inplace=True)]
 
         in_channels = ndf
         out_channels = ndf * 2
         for i in range(1, n_layers + 1):
-            layers.append(ConvModule(in_channels, out_channels, kernel_size=4, padding=1, stride=2))
-            layers.append(ResStage(out_channels, out_channels, num_blocks=1))
+            stride = 2 if i < n_layers else 1
+            layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, padding=1, stride=stride))
+            layers.append(nn.BatchNorm2d(out_channels))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
 
             in_channels = out_channels
             out_channels = out_channels * (2 if i < 3 else 1)
 
-        layers.append(nn.Conv2d(out_channels, 1, kernel_size=3, padding=1, stride=1))
+        layers.append(nn.Conv2d(out_channels, 1, kernel_size=4, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -50,6 +53,7 @@ if __name__ == '__main__':
     # Compute FLOPs & Params
     print('==============================')
     model.eval()
+    x = torch.randn(1, img_dim, img_size, img_size, requires_grad=True)
     flops, params = profile(model, inputs=(x, ), verbose=False)
     print('GFLOPs : {:.2f}'.format(flops / 1e9 * 2))
     print('Params : {:.2f} M'.format(params / 1e6))
