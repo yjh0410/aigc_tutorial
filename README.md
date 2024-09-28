@@ -48,3 +48,5 @@ You could download the pretrained `VQ-VAE` on `CelebA` dataset from the followin
 python vqgan_train.py --cuda --max_epoch 100 --eval_epoch 5 --batch_size 16 --lr 0.000025 --img_size 64 --dataset celebA --root path/to/CelebA
 ```
 
+- `VQ-GAN` on CelebA with image size of 128: [vqgan_celebA_size_128](https://github.com/yjh0410/aigc_tutorial/releases/download/aigc_checkpoints/vqgan_celebA_size_128_psnr_30.4_ssim_0.9048.pth)
+
