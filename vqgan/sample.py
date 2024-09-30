@@ -59,7 +59,7 @@ def reconstruction(args, device):
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqgan.load_state_dict(checkpoint["generator"])
+        vqgan.load_state_dict(checkpoint["model"])
     vqgan = vqgan.to(device).eval()
 
     # Output path

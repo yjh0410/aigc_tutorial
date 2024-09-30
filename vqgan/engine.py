@@ -21,8 +21,8 @@ def calculate_lambda(last_layer, p_loss, g_loss):
 def train_one_epoch(args,
                     device,
                     model,
-                    lpips,
                     pdisc,
+                    lpips_loss,
                     data_loader,
                     optimizer_G,
                     optimizer_D,
@@ -33,7 +33,6 @@ def train_one_epoch(args,
                     ):
     model.train()
     pdisc.train()
-    lpips.eval()
     metric_logger = MetricLogger(delimiter="  ")
     metric_logger.add_meter('lr_G', SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('lr_D', SmoothedValue(window_size=1, fmt='{value:.6f}'))
@@ -74,9 +73,10 @@ def train_one_epoch(args,
         real_x = output['x']
         fake_x = output['x_pred']
         disc_fake = pdisc(fake_x)
-        g_loss    = -disc_fake.mean()
+        g_loss    = torch.mean(-disc_fake)
 
-        ploss = lpips(real_x, fake_x)
+        ploss = lpips_loss(real_x, fake_x)
+        ploss = torch.mean(ploss)
         rloss = loss_dict['rec_loss']
         qloss = loss_dict['emb_loss']
         pr_loss = 1.0 * ploss + 1.0 * rloss
@@ -144,6 +144,8 @@ def train_one_epoch(args,
             epoch_1000x = int((iter_i / len(data_loader) + epoch) * 1000)
             for k in loss_dict:
                 tblogger.add_scalar(k, loss_dict[k].item(), epoch_1000x)
+
+        break
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

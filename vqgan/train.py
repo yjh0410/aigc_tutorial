@@ -2,6 +2,7 @@ import os
 import time
 import argparse
 import datetime
+import lpips
 
 # ---------------- Torch compoments ----------------
 import torch
@@ -14,7 +15,6 @@ from dataset import build_dataset, build_dataloader
 
 # ---------------- Model compoments ----------------
 from model import VQGAN
-from lpips import LPIPS
 from discriminator import PatchDiscriminator
 
 # ---------------- Utils compoments ----------------
@@ -147,8 +147,8 @@ def main():
 
     # ------------------------- Build VQ-GAN -------------------------
     print(' ============= VQ-GAN Info. ============= ')
-    # model = VQGAN(img_dim=args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
-    model = VQGAN(img_dim=args.img_dim, num_embeddings=1024, hidden_dim=256, latent_dim=256)
+    model = VQGAN(img_dim=args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
+    # model = VQGAN(img_dim=args.img_dim, num_embeddings=1024, hidden_dim=256, latent_dim=256)
     model = model.to(device)
     print(model)
 
@@ -159,10 +159,9 @@ def main():
     print(pdisc)
 
     # ------------------------- Build LPIPS -------------------------
-    print(' ============= LPIPS Info. ============= ')
-    lpips = LPIPS().eval()
-    lpips = lpips.to(device)
-    print(lpips)
+    print(' - Use LPIPS to train VQ-GAN ')
+    lpips_loss = lpips.LPIPS(net="vgg").eval()
+    lpips_loss = lpips_loss.to(device)
 
     # ------------------------- Build Warmup LR Scheduler -------------------------
     lr_scheduler_wp = LinearWarmUpLrScheduler(args.lr, wp_iters=args.wp_iters)
@@ -176,11 +175,10 @@ def main():
     lr_scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, T_max=args.max_epoch - 1, eta_min=0.0)
 
     # ------------------------- Build Criterion -------------------------
-    load_gan_model(args, model, lpips, pdisc, optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D)
+    load_gan_model(args, model, pdisc, optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D)
 
     # ------------------------- Build DDP Model -------------------------
     model_wo_ddp = model
-    lpips_wo_ddp = lpips
     pdisc_wo_ddp = pdisc
     if args.distributed:
         model = DDP(model, device_ids=[args.gpu], find_unused_parameters=True)
@@ -207,8 +205,8 @@ def main():
         train_one_epoch(args,
                         device,
                         model,
-                        lpips,
                         pdisc,
+                        lpips_loss,
                         train_dataloader,
                         optimizer_G,
                         optimizer_D,
@@ -231,8 +229,9 @@ def main():
 
                 # Save the checkpoint
                 psnr, ssim = round(metrics["psnr"], 2), round(metrics["ssim"], 4)
-                save_gan_model(args, model_wo_ddp, lpips_wo_ddp, pdisc_wo_ddp,
-                               optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D,
+                save_gan_model(args, model_wo_ddp, pdisc_wo_ddp,
+                               optimizer_G, optimizer_D,
+                               lr_scheduler_G, lr_scheduler_D,
                                epoch, metrics=[psnr, ssim])
         if args.distributed:
             dist.barrier()
