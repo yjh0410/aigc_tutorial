@@ -145,8 +145,6 @@ def train_one_epoch(args,
             for k in loss_dict:
                 tblogger.add_scalar(k, loss_dict[k].item(), epoch_1000x)
 
-        break
-
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print_rank_0("Averaged stats: {}".format(metric_logger), local_rank)
