@@ -76,7 +76,7 @@ def train_one_epoch(args,
         g_loss    = torch.mean(-disc_fake)
 
         real_x_norm = real_x * 2.0 - 1.0
-        fake_x_norm = real_x * 2.0 - 1.0
+        fake_x_norm = fake_x * 2.0 - 1.0
         ploss = lpips_loss(real_x_norm, fake_x_norm)
         ploss = torch.mean(ploss)
         rloss = loss_dict['rec_loss']
