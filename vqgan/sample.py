@@ -55,7 +55,8 @@ def reconstruction(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    vqgan = VQGAN(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
+    # vqgan = VQGAN(args.img_dim, num_embeddings=512, hidden_dim=128, latent_dim=64)
+    vqgan = VQGAN(img_dim=args.img_dim, num_embeddings=1024, hidden_dim=256, latent_dim=256)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
