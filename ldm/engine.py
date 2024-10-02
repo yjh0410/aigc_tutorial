@@ -9,6 +9,15 @@ from utils.misc import print_rank_0
 from metric import batch_calculate_psnr, batch_calculate_ssim
 
 
+def calculate_lambda(last_layer, p_loss, g_loss):
+    p_loss_grads = torch.autograd.grad(p_loss, last_layer, retain_graph=True)[0]
+    g_loss_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
+
+    λ = torch.norm(p_loss_grads) / (torch.norm(g_loss_grads) + 1e-4)
+    λ = torch.clamp(λ, 0, 1e4).detach().contiguous()
+
+    return 0.8 * λ
+
 def first_stage_train_one_epoch(args,
                     device,
                     model,
@@ -77,11 +86,18 @@ def first_stage_train_one_epoch(args,
         rec_loss = F.l1_loss(fake_x, real_x, reduction="mean")
         kl_loss  = torch.mean(0.5 * (-1.0 + log_var.exp() + torch.square(mu) - log_var))
 
+        # Calculate loss weight for GAN loss
+        pr_loss = 1.0 * per_loss + 1.0 * rec_loss
+        if args.distributed:
+            λ = calculate_lambda(model.module.decoder.layers[-1].weight, pr_loss, gan_loss)
+        else:
+            λ = calculate_lambda(model.decoder.layers[-1].weight, pr_loss, gan_loss)
+
         # Generator loss
         vae_loss = 1.0 * per_loss + \
                    1.0 * rec_loss + \
-                   0.001 * kl_loss + \
-                   disc_factor * gan_loss
+                   0.00001 * kl_loss + \
+                   λ * disc_factor * gan_loss
 
         # ------------- Discriminator loss -------------
         # Discriminate real images

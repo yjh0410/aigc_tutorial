@@ -211,6 +211,8 @@ class VariationalAE(nn.Module):
         z = self.encoder(x)
         mu, log_var = torch.chunk(z, chunks=2, dim=1)
 
+        log_var = torch.clamp(log_var, -30.0, 20.0)
+
         # Decode
         rep_z = self.gaussian_reparam(mu, log_var)
         x_rec = self.forward_decode(rep_z)
