@@ -148,7 +148,7 @@ def main():
 
     # ------------------------- Build VQ-GAN -------------------------
     print(' ============= VAE Info. ============= ')
-    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[64, 128, 256, 512], latent_dim=4)
+    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[32, 64, 128, 256], latent_dim=4)
     model = model.to(device)
     print(model)
 

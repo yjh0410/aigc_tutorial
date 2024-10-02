@@ -173,13 +173,11 @@ class VariationalAE(nn.Module):
                  hidden_dims: List = [64, 128, 256],
                  latent_dim: int = 8,
                  use_attn: bool = False,
-                 num_samples: int = 1,
                  ):
         super().__init__()
         self.img_dim = img_dim
         self.hidden_dims = hidden_dims
         self.latent_dim  = latent_dim
-        self.num_samples = num_samples
         
         self.encoder = VaeEncoder(img_dim, hidden_dims, latent_dim, use_attn)
         self.decoder = VaeDecoder(img_dim, hidden_dims, latent_dim, use_attn)
@@ -215,9 +213,15 @@ class VariationalAE(nn.Module):
 
         # Decode
         rep_z = self.gaussian_reparam(mu, log_var)
-        x = self.forward_decode(rep_z)
+        x_rec = self.forward_decode(rep_z)
 
-        return x, mu, log_var
+        output = {
+            "x_pred": x_rec,
+            "mu": mu,
+            "log_var": log_var,
+        }
+
+        return output
 
 
 if __name__ == '__main__':

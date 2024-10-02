@@ -59,7 +59,10 @@ def first_stage_train_one_epoch(args,
 
         # Inference
         real_x = images
-        fake_x, mu, log_var = model(images)
+        output = model(images)
+        fake_x = output["x_pred"]
+        mu = output["mu"]
+        log_var = output["log_var"]
 
         # ------------- Generator loss -------------
         # We wish the generator to fool the discriminator,
