@@ -87,17 +87,14 @@ def first_stage_train_one_epoch(args,
         kl_loss  = torch.mean(0.5 * (-1.0 + log_var.exp() + torch.square(mu) - log_var))
 
         # Calculate loss weight for GAN loss
-        pr_loss = 1.0 * per_loss + 1.0 * rec_loss
+        pr_loss = 1.0 * per_loss + 1.0 * rec_loss + 0.000001 * kl_loss
         if args.distributed:
             λ = calculate_lambda(model.module.decoder.layers[-1].weight, pr_loss, gan_loss)
         else:
             λ = calculate_lambda(model.decoder.layers[-1].weight, pr_loss, gan_loss)
 
         # Generator loss
-        vae_loss = 1.0 * per_loss + \
-                   1.0 * rec_loss + \
-                   0.00001 * kl_loss + \
-                   λ * disc_factor * gan_loss
+        vae_loss = pr_loss + λ * disc_factor * gan_loss
 
         # ------------- Discriminator loss -------------
         # Discriminate real images
