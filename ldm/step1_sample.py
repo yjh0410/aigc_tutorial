@@ -54,7 +54,7 @@ def reconstruction(args, device):
     dataloader = build_dataloader(args, dataset, is_train=False)
 
     # Build Model
-    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[64, 128, 256, 512], latent_dim=4)
+    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[32, 64, 128, 256], latent_dim=4)
     if args.weight_vae is not None:
         print(f' - Load checkpoint for AutoEncoder from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
@@ -108,12 +108,12 @@ def reconstruction(args, device):
 def sample(args, device):
     args.img_dim = 3
     # Build Model
-    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[64, 128, 256, 512], latent_dim=4)
+    model = VariationalAE(img_dim=args.img_dim, hidden_dims=[32, 64, 128, 256], latent_dim=4)
     if args.weight_vae is not None:
-        print(f' - Load checkpoint for VQ-GAN from the checkpoint : {args.weight_vae} ...')
+        print(f' - Load checkpoint for AutoEncoder from the checkpoint : {args.weight_vae} ...')
         checkpoint = torch.load(args.weight_vae, map_location='cpu')
-        vqgan.load_state_dict(checkpoint["model"])
-    vqgan = vqgan.to(device).eval()
+        model.load_state_dict(checkpoint["model"])
+    model = model.to(device).eval()
 
     # Output path
     output_dir = os.path.join("result", args.dataset, args.model, 'sample')

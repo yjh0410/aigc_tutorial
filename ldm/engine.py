@@ -79,11 +79,16 @@ def first_stage_train_one_epoch(args,
         disc_fake = pdisc(fake_x)
         gan_loss  = torch.mean(-disc_fake)
 
+        # LPIPS loss
         real_x_norm = real_x * 2.0 - 1.0
         fake_x_norm = fake_x * 2.0 - 1.0
         per_loss = lpips_loss(real_x_norm, fake_x_norm)
         per_loss = torch.mean(per_loss)
+
+        # L1 pixel loss
         rec_loss = F.l1_loss(fake_x, real_x, reduction="mean")
+
+        # KL loss
         kl_loss  = torch.mean(0.5 * (-1.0 + log_var.exp() + torch.square(mu) - log_var))
 
         # Calculate loss weight for GAN loss
