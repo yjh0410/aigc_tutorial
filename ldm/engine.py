@@ -99,7 +99,7 @@ def first_stage_train_one_epoch(args,
         kl_loss  = torch.mean(0.5 * (-1.0 + log_var.exp() + torch.square(mu) - log_var))
 
         # Generator loss
-        vae_loss = pr_loss + 0.001 * kl_loss + λ * disc_factor * gan_loss
+        vae_loss = pr_loss + 0.00001 * kl_loss + λ * disc_factor * gan_loss
 
         # ------------- Discriminator loss -------------
         # Discriminate real images
