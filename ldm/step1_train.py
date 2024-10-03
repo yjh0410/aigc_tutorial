@@ -181,7 +181,7 @@ def main():
     model_wo_ddp = model
     pdisc_wo_ddp = pdisc
     if args.distributed:
-        model = DDP(model, device_ids=[args.gpu], find_unused_parameters=True)
+        model = DDP(model, device_ids=[args.gpu])
         model_wo_ddp = model.module
 
         pdisc = DDP(pdisc, device_ids=[args.gpu])
