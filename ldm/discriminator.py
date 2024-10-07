@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 try:
-    from .modules import ResStage
+    from .modules import ConvModule, ResStage
 except:
-    from  modules import ResStage
+    from  modules import ConvModule, ResStage
 
 
 class PatchDiscriminator(nn.Module):
@@ -19,16 +19,11 @@ class PatchDiscriminator(nn.Module):
         out_channels = ndf * 2
         for i in range(1, n_layers + 1):
             stride = 2 if i < n_layers else 1
-            layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, padding=1, stride=stride, bias=False))
-            layers.append(nn.BatchNorm2d(out_channels))
-            layers.append(nn.LeakyReLU(0.2, inplace=True))
+            layers.append(ConvModule(in_channels, out_channels, kernel_size=4, padding=1, stride=stride))
+            layers.append(ResStage(out_channels, out_channels, num_blocks=1))
 
             in_channels = out_channels
             out_channels = out_channels * (2 if i < 3 else 1)
-
-        layers.append(nn.Conv2d(out_channels, out_channels, kernel_size=4, padding=1, stride=1, bias=False))
-        layers.append(nn.BatchNorm2d(out_channels))
-        layers.append(nn.LeakyReLU(0.2, inplace=True))
 
         layers.append(nn.Conv2d(out_channels, 1, kernel_size=4, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
@@ -63,7 +58,7 @@ if __name__ == '__main__':
 
     # Inference
     y = model(x)
-    print("Disc: ", y)
+    print(y.shape)
 
     # Compute FLOPs & Params
     print('==============================')

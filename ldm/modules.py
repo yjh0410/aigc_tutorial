@@ -16,7 +16,7 @@ class ConvModule(nn.Module):
         # ----------- Model parameters -----------
         self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride, bias=False)
         self.norm = nn.GroupNorm(num_groups=32, num_channels=out_dim)
-        self.act  = nn.SiLU(inplace=True)
+        self.act  = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
         # PreNorm and PreAct
@@ -38,7 +38,7 @@ class DeConvModule(nn.Module):
         # ----------- Model parameters -----------
         self.conv = nn.ConvTranspose2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride, bias=False)
         self.norm = nn.GroupNorm(num_groups=32, num_channels=out_dim)
-        self.act  = nn.SiLU(inplace=True)
+        self.act  = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
         # PreNorm and PreAct
