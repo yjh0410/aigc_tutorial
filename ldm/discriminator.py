@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 
+try:
+    from .modules import ResStage
+except:
+    from  modules import ResStage
+
 
 class PatchDiscriminator(nn.Module):
     def __init__(self, in_dim=3, ndf=64, n_layers=3):
@@ -8,27 +13,37 @@ class PatchDiscriminator(nn.Module):
         self.train_iters = 0
         # ------------ Model parameters ------------
         layers = [nn.Conv2d(in_dim, ndf, kernel_size=4, padding=1, stride=2),
-                  nn.GroupNorm(num_groups=32, num_channels=ndf),
-                  nn.SiLU(inplace=True)]
+                  nn.LeakyReLU(0.2, inplace=True)]
 
         in_channels = ndf
         out_channels = ndf * 2
         for i in range(1, n_layers + 1):
             stride = 2 if i < n_layers else 1
-            layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, padding=1, stride=stride))
-            layers.append(nn.GroupNorm(num_groups=32, num_channels=out_channels))
-            layers.append(nn.SiLU(inplace=True))
-            if stride == 2:
-                layers.append(nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, stride=1))
-                layers.append(nn.GroupNorm(num_groups=32, num_channels=out_channels))
-                layers.append(nn.SiLU(inplace=True))
+            layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, padding=1, stride=stride, bias=False))
+            layers.append(nn.BatchNorm2d(out_channels))
+            layers.append(nn.LeakyReLU(0.2, inplace=True))
 
             in_channels = out_channels
             out_channels = out_channels * (2 if i < 3 else 1)
 
-        layers.append(nn.Conv2d(out_channels, 1, kernel_size=1, padding=0, stride=1))
+        layers.append(nn.Conv2d(out_channels, out_channels, kernel_size=4, padding=1, stride=1, bias=False))
+        layers.append(nn.BatchNorm2d(out_channels))
+        layers.append(nn.LeakyReLU(0.2, inplace=True))
+
+        layers.append(nn.Conv2d(out_channels, 1, kernel_size=4, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
 
+        self.weights_init()
+        
+    def weights_init(self,):
+        for m in self.modules():
+            if isinstance(m, torch.nn.Conv2d):
+                nn.init.normal_(m.weight.data, 0.0, 0.02)
+        
+            if isinstance(m, torch.nn.BatchNorm2d):
+                nn.init.normal_(m.weight.data, 1.0, 0.02)
+                nn.init.constant_(m.bias.data, 0)
+        
     def forward(self, x):
         return self.layers(x)
     
