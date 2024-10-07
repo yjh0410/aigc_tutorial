@@ -27,6 +27,8 @@ class VaeEncoder(nn.Module):
             _use_attn = use_attn if 2 ** i >= 4 else False
             layers.append(ConvModule(hidden_dims[i-1], hidden_dims[i], kernel_size=3, padding=1, stride=2))
             layers.append(ResStage(hidden_dims[i], hidden_dims[i], num_blocks=2, use_attn=_use_attn))                
+        layers.append(nn.GroupNorm(num_groups=32, num_channels=hidden_dims[-1]))
+        layers.append(nn.SiLU(inplace=True))
         layers.append(nn.Conv2d(hidden_dims[-1], latent_dim * 2, kernel_size=3, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
 
@@ -47,6 +49,8 @@ class VaeDecoder(nn.Module):
             _use_attn = use_attn if 2 ** i >= 4 else False
             layers.append(ResStage(hidden_dims[i], hidden_dims[i], num_blocks=2, use_attn=_use_attn))
             layers.append(DeConvModule(hidden_dims[i], hidden_dims[i-1], kernel_size=4, padding=1, stride=2))
+        layers.append(nn.GroupNorm(num_groups=32, num_channels=hidden_dims[0]))
+        layers.append(nn.SiLU(inplace=True))
         layers.append(nn.Conv2d(hidden_dims[0], img_dim, kernel_size=3, padding=1, stride=1))
         self.layers = nn.Sequential(*layers)
 

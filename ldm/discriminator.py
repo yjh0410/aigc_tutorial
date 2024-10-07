@@ -8,18 +8,19 @@ class PatchDiscriminator(nn.Module):
         self.train_iters = 0
         # ------------ Model parameters ------------
         layers = [nn.Conv2d(in_dim, ndf, kernel_size=4, padding=1, stride=2),
+                  nn.GroupNorm(num_groups=32, num_channels=ndf),
                   nn.SiLU(inplace=True)]
 
         in_channels = ndf
         out_channels = ndf * 2
         for i in range(1, n_layers + 1):
             stride = 2 if i < n_layers else 1
-            layers.append(nn.GroupNorm(num_groups=32, num_channels=in_channels))
             layers.append(nn.Conv2d(in_channels, out_channels, kernel_size=4, padding=1, stride=stride))
+            layers.append(nn.GroupNorm(num_groups=32, num_channels=out_channels))
             layers.append(nn.SiLU(inplace=True))
             if stride == 2:
-                layers.append(nn.GroupNorm(num_groups=32, num_channels=out_channels))
                 layers.append(nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, stride=1))
+                layers.append(nn.GroupNorm(num_groups=32, num_channels=out_channels))
                 layers.append(nn.SiLU(inplace=True))
 
             in_channels = out_channels
