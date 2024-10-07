@@ -117,7 +117,6 @@ def first_stage_train_one_epoch(args,
         # Backward Generator losses
         optimizer_G.zero_grad()
         vae_loss.backward(retain_graph=True)
-        vae_loss.backward()
         gnorm_G = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
         # Backward Discriminator losses

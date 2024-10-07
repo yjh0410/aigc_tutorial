@@ -109,7 +109,6 @@ def train_one_epoch(args,
         # Backward Generator losses
         optimizer_G.zero_grad()
         vq_loss.backward(retain_graph=True)
-        vq_loss.backward()
 
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
 
