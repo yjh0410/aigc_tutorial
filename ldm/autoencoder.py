@@ -21,7 +21,7 @@ class VaeEncoder(nn.Module):
         super().__init__()
         # Input projectin
         layers = []
-        layers.append(nn.Conv2d(img_dim, hidden_dims[0], kernel_size=3, padding=1, stride=1))
+        layers.append(ConvModule(img_dim, hidden_dims[0], kernel_size=3, padding=1, stride=1))
         layers.append(ResStage(hidden_dims[0], hidden_dims[0], num_blocks=2, use_attn=False))
 
         # Inter stages
@@ -47,7 +47,7 @@ class VaeDecoder(nn.Module):
         super().__init__()
         # Input projectin
         layers = []
-        layers.append(nn.Conv2d(latent_dim, hidden_dims[-1], kernel_size=3, padding=1, stride=1))
+        layers.append(ConvModule(latent_dim, hidden_dims[-1], kernel_size=3, padding=1, stride=1))
 
         # Inter stages
         for i in range(len(hidden_dims)-1, 0, -1):

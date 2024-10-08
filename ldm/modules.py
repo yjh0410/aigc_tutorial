@@ -14,15 +14,14 @@ class ConvModule(nn.Module):
                 ):
         super(ConvModule, self).__init__()
         # ----------- Model parameters -----------
-        self.norm = nn.GroupNorm(num_groups=32, num_channels=in_dim)
-        self.act  = nn.SiLU(inplace=True)
         self.conv = nn.Conv2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride)
+        self.norm = nn.GroupNorm(num_groups=32, num_channels=out_dim)
+        self.act  = nn.SiLU(inplace=True)
 
     def forward(self, x):
-        # PreNorm and PreAct
+        x = self.conv(x)
         x = self.norm(x)
         x = self.act(x)
-        x = self.conv(x)
 
         return x
 
@@ -36,15 +35,14 @@ class DeConvModule(nn.Module):
                 ):
         super(DeConvModule, self).__init__()
         # ----------- Model parameters -----------
-        self.norm = nn.GroupNorm(num_groups=32, num_channels=in_dim)
-        self.act  = nn.SiLU(inplace=True)
         self.conv = nn.ConvTranspose2d(in_dim, out_dim, kernel_size=kernel_size, padding=padding, stride=stride)
+        self.norm = nn.GroupNorm(num_groups=32, num_channels=out_dim)
+        self.act  = nn.SiLU(inplace=True)
 
     def forward(self, x):
-        # PreNorm and PreAct
+        x = self.conv(x)
         x = self.norm(x)
         x = self.act(x)
-        x = self.conv(x)
 
         return x
 
