@@ -168,11 +168,11 @@ def main():
 
     # ------------------------- Build Optimzier & Scheduler for Generator -------------------------
     optimizer_G = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=[0.5, 0.9], weight_decay=0.0)
-    lr_scheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_G, T_max=args.max_epoch - 1, eta_min=0.01)
+    lr_scheduler_G = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_G, T_max=args.max_epoch - 1, eta_min=args.lr * 0.01)
 
     # ------------------------- Build Optimzier & Scheduler for Discriminator -------------------------
     optimizer_D = torch.optim.AdamW(pdisc.parameters(), lr=args.lr, betas=[0.5, 0.9], weight_decay=0.0)
-    lr_scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, T_max=args.max_epoch - 1, eta_min=0.01)
+    lr_scheduler_D = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer_D, T_max=args.max_epoch - 1, eta_min=args.lr * 0.01)
 
     # ------------------------- Build Criterion -------------------------
     load_gan_model(args, model, pdisc, optimizer_G, optimizer_D, lr_scheduler_G, lr_scheduler_D)
