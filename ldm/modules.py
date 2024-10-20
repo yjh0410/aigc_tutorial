@@ -92,13 +92,9 @@ class ResBlock(nn.Module):
             ConvModule(in_dim,  out_dim, kernel_size=3, padding=1, stride=1),
             ConvModule(out_dim, out_dim, kernel_size=3, padding=1, stride=1),
         )
-        if in_dim != out_dim:
-            self.identity = nn.Conv2d(in_dim, out_dim, kernel_size=1, padding=0, stride=1)
-        else:
-            self.identity = nn.Identity()
 
     def forward(self, x):
-        return self.res_layer(x) + self.identity(x)
+        return self.res_layer(x) + x
 
 class ResStage(nn.Module):
     def __init__(self, in_dim, out_dim, num_blocks=1, use_attn=False):

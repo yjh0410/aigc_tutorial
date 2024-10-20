@@ -59,7 +59,7 @@ def parse_args():
     # Optimizer
     parser.add_argument('--optimizer', type=str, default='adam',
                         help='training optimier.')
-    parser.add_argument('--batch_size', type=int, default=4,
+    parser.add_argument('--batch_size', type=int, default=8,
                         help='gradient accumulation')
     parser.add_argument('--lr', type=float, default=4.5e-6,
                         help='initial learning rate.')
@@ -68,7 +68,7 @@ def parse_args():
     parser.add_argument('--wp_iters', type=float, default=500,
                         help='initial learning rate.')
     # Epoch
-    parser.add_argument('--max_epoch', type=int, default=20,
+    parser.add_argument('--max_epoch', type=int, default=100,
                         help='number of workers')
     parser.add_argument('--eval_epoch', type=int, default=5,
                         help='number of workers')
@@ -154,14 +154,14 @@ def main():
 
     # ------------------------- Build Discriminator -------------------------
     print(' ============= Discriminator Info. ============= ')
-    pdisc = PatchDiscriminator(in_dim=3, ndf=64, n_layers=3)
+    pdisc = PatchDiscriminator(in_dim=3, ndf=64)
     pdisc = pdisc.to(device)
     print(pdisc)
 
     # ------------------------- Build LPIPS -------------------------
     print(' - Use LPIPS to train VAE in first stage. ')
-    lpips_loss = lpips.LPIPS(net="vgg").eval()
-    lpips_loss = lpips_loss.to(device)
+    lpips_loss_f = lpips.LPIPS(net="vgg").eval()
+    lpips_loss_f = lpips_loss_f.to(device)
 
     # ------------------------- Build Warmup LR Scheduler -------------------------
     lr_scheduler_wp = LinearWarmUpLrScheduler(args.lr, wp_iters=args.wp_iters)
@@ -202,18 +202,17 @@ def main():
             train_dataloader.batch_sampler.sampler.set_epoch(epoch)
 
         # Train one epoch
-        first_stage_train_one_epoch(args,
-                                    device,
-                                    model,
-                                    pdisc,
-                                    lpips_loss,
-                                    train_dataloader,
-                                    optimizer_G,
-                                    optimizer_D,
-                                    lr_scheduler_wp,
-                                    epoch,
-                                    local_rank,
-                                    tblogger,
+        first_stage_train_one_epoch(args                = args,
+                                    device              = device,
+                                    model               = model,
+                                    discriminator       = pdisc,
+                                    lpips_loss_f        = lpips_loss_f,
+                                    data_loader         = train_dataloader,
+                                    optimizer_G         = optimizer_G,
+                                    optimizer_D         = optimizer_D,
+                                    lr_scheduler_warmup = lr_scheduler_wp,
+                                    epoch               = epoch,
+                                    local_rank          = local_rank,
                                     )
         
         # LR scheduler
